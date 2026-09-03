@@ -5,3 +5,4 @@ build/
 *.aab
 *.jar
 node_modules/
+.config/
