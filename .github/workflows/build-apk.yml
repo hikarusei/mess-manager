@@ -33,7 +33,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          bubblewrap build --skipPwaValidation
+          echo "n" | bubblewrap build --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
