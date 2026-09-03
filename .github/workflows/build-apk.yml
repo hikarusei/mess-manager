@@ -33,7 +33,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          printf "n\n%s\n" "$JAVA_HOME" | bubblewrap build --skipPwaValidation
+          mkdir -p ~/.bubblewrap && printf '{"jdkPath":"%s"}' "$JAVA_HOME" > ~/.bubblewrap/config.json && printf "n\n%s\n" "$JAVA_HOME" | bubblewrap build --skipPwaValidation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

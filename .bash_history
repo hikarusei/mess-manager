@@ -100,3 +100,119 @@ git remote -v
 git remote add origin https://hikarusei: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@github.com/hikarusei/mess-manager.git
 git config user.email "you@example.com"
 git config user.name "hikarusei"
+git reset --hard fe0f486
+echo ".config/" >> .gitignore
+git add .github/workflows/build-apk.yml .gitignore
+git status
+cat > .github/workflows/build-apk.yml << 'EOF'
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Restore keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android.keystore
+
+      - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          bubblewrap build --skipPwaValidation
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed
+          path: app-release-signed.apk
+EOF
+
+git add .github/workflows/build-apk.yml .gitignore
+git status
+mkdir -p .github/workflows
+git add .github/workflows/build-apk.yml .gitignore
+cat > .github/workflows/build-apk.yml << 'EOF'
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Restore keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android.keystore
+
+      - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          bubblewrap build --skipPwaValidation
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed
+          path: app-release-signed.apk
+EOF
+
+git add .github/workflows/build-apk.yml .gitignore
+git status
+git commit -m "add GitHub Actions build workflow"
+git push origin main
+git remote set-url origin https://$(gh auth token)@github.com/hikarusei/mess-manager.git
+gh auth login
+gh auth setup-git
+git remote set-url origin https://github.com/hikarusei/mess-manager.git
+git push origin main
+sed -i 's/bubblewrap build --skipPwaValidation/echo "n" | bubblewrap build --skipPwaValidation/' .github/workflows/build-apk.yml
+git add .github/workflows/build-apk.yml
+git commit -m "fix: auto-answer bubblewrap JDK prompt"
+git push origin main
+sed -i 's|echo "n" | bubblewrap build --skipPwaValidation|printf "n\\n%s\\n" "$JAVA_HOME" | bubblewrap build --skipPwaValidation|' .github/workflows/build-apk.yml
+git add .github/workflows/build-apk.yml && git commit -m "fix: auto-answer bubblewrap JDK path prompt" && git push origin main
+sed -i 's@echo "n" | bubblewrap build --skipPwaValidation@printf "n\\n%s\\n" "$JAVA_HOME" | bubblewrap build --skipPwaValidation@' .github/workflows/build-apk.yml
+git add .github/workflows/build-apk.yml && git commit -m "fix: auto-answer bubblewrap JDK path prompt" && git push origin main
+cat .github/workflows/build-apk.yml
