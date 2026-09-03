@@ -1,0 +1,7 @@
+.gradle/
+.bubblewrap/
+build/
+*.apk
+*.aab
+*.jar
+node_modules/

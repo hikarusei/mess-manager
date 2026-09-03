@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mess Manager</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<meta name="theme-color" content="#0a1636">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --glass-bg: rgba(180,205,255,0.07);
+    --glass-bg-strong: rgba(180,205,255,0.13);
+    --glass-border: rgba(200,220,255,0.32);
+    --glass-highlight: rgba(255,255,255,0.75);
+    --text-1: rgba(255,255,255,0.97);
+    --text-2: rgba(210,225,255,0.64);
+    --text-3: rgba(180,200,255,0.38);
+    --accent-a: #2E63F0;
+    --accent-b: #6FA9FF;
+    --accent-c: #A7C8FF;
+    --accent-d: #D69A4E;
+    --accent-e: #2BB89A;
+    --danger: #E0625F;
+    --ok: #3ECB88;
+    --radius-xl: 32px;
+    --radius-lg: 24px;
+    --radius-md: 18px;
+    --radius-sm: 12px;
+    --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;overflow-x:hidden;}
+  body{
+    font-family:'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    color:var(--text-1);
+    background:#020308;
+    min-height:100vh;
+    position:relative;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Animated mesh gradient background (deep navy -> bright blue glow) ---------- */
+  #mesh{
+    position:fixed; inset:0; z-index:0; overflow:hidden; background:radial-gradient(ellipse at 50% -10%, #1a3a7a 0%, #0a1636 38%, #020308 78%);
+    filter:saturate(1.3) contrast(1.05); pointer-events:none; contain:strict;
+  }
+  .blob{
+    position:absolute; border-radius:50%; filter:blur(55px); opacity:0.6; mix-blend-mode:screen;
+    will-change:transform;
+  }
+  .blob1{width:48vmax;height:48vmax; background:radial-gradient(circle at 30% 30%, #4d7fff, transparent 68%); top:-18%; left:-14%; animation:float1 16s ease-in-out infinite;}
+  .blob2{width:44vmax;height:44vmax; background:radial-gradient(circle at 60% 40%, #bcd8ff, transparent 68%); top:4%; right:-18%; animation:float2 19s ease-in-out infinite;}
+  .blob3{width:42vmax;height:42vmax; background:radial-gradient(circle at 50% 50%, #1e50c8, transparent 68%); bottom:-16%; left:4%; animation:float3 14s ease-in-out infinite;}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(30%,24%) scale(1.18);}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-28%,26%) scale(1.18);}}
+  @keyframes float3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(24%,-30%) scale(1.15);}}
+  #grain{position:fixed; inset:0; z-index:1; opacity:0.035; pointer-events:none; contain:strict;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- App shell ---------- */
+  #app{position:relative; z-index:2; min-height:100vh; display:flex; flex-direction:column;}
+  .screen{padding:24px 18px 110px; max-width:560px; margin:0 auto; width:100%; animation:screenIn 1.1s var(--ease-apple);}
+  @keyframes screenIn{from{opacity:0; transform:translateY(16px) scale(0.99);} to{opacity:1; transform:translateY(0) scale(1);}}
+
+  /* ---------- Liquid glass primitives ---------- */
+  .glass{
+    background:var(--glass-bg);
+    backdrop-filter:blur(22px) saturate(180%);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);
+    border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);
+    box-shadow: inset 0 1.5px 1.5px rgba(255,255,255,0.55), inset 0 -1px 14px rgba(255,255,255,0.04), inset 0 0 50px rgba(120,170,255,0.04), 0 14px 44px rgba(0,5,20,0.45);
+    position:relative;
+  }
+  .glass::before{
+    content:''; position:absolute; top:0; left:6%; right:6%; height:1px;
+    background:linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+    opacity:0.95;
+  }
+  .glass::after{
+    content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:linear-gradient(160deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 32%);
+  }
+  .glass-strong{background:var(--glass-bg-strong); backdrop-filter:blur(28px) saturate(180%); -webkit-backdrop-filter:blur(28px) saturate(180%);}
+  .card{padding:20px; margin-bottom:14px; transition:transform 0.7s var(--ease-spring), box-shadow 0.7s var(--ease-smooth);}
+  .card:active{transform:scale(0.985);}
+
+  h1,h2,h3{margin:0; font-weight:800; letter-spacing:-0.02em;}
+  h1{font-size:26px;}
+  h2{font-size:19px;}
+  h3{font-size:15px; font-weight:700;}
+  p{margin:0;}
+  .muted{color:var(--text-2); font-size:13px;}
+  .tiny{color:var(--text-3); font-size:11px;}
+
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .col{display:flex; flex-direction:column; gap:4px;}
+  .stack{display:flex; flex-direction:column; gap:12px;}
+
+  /* ---------- Buttons ---------- */
+  button{font-family:inherit; cursor:pointer; border:none; outline:none;}
+  .btn{
+    padding:14px 22px; border-radius:100px; font-weight:700; font-size:14px;
+    background:var(--glass-bg-strong); color:var(--text-1); border:1px solid var(--glass-border);
+    backdrop-filter:blur(14px); transition:transform 0.6s var(--ease-spring), background 0.6s;
+  }
+  .btn:active{transform:scale(0.96);}
+  .btn-primary{background:linear-gradient(135deg, var(--accent-a), var(--accent-b)); border:none; box-shadow:0 6px 24px rgba(123,108,255,0.45);}
+  .btn-full{width:100%;}
+  .btn-sm{padding:9px 16px; font-size:12px;}
+  .btn-danger{background:rgba(255,107,107,0.25); border:1px solid rgba(255,107,107,0.5);}
+  .btn-ghost{background:transparent; border:1px solid var(--glass-border);}
+  .icon-btn{width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--glass-bg); border:1px solid var(--glass-border); font-size:16px; transition:transform 0.6s var(--ease-spring), background 0.6s;}
+  .icon-btn:active{transform:scale(0.92);}
+
+  input, select, textarea{
+    width:100%; padding:14px 16px; border-radius:16px; border:1px solid var(--glass-border);
+    background:rgba(255,255,255,0.08); color:var(--text-1); font-family:inherit; font-size:15px; font-weight:500;
+    backdrop-filter:blur(10px); transition:border-color 0.25s, background 0.25s;
+  }
+  input::placeholder, textarea::placeholder{color:var(--text-3);}
+  input:focus, select:focus, textarea:focus{border-color:var(--accent-b); background:rgba(255,255,255,0.13);}
+  label{font-size:12px; color:var(--text-2); font-weight:600; margin-bottom:6px; display:block; text-transform:uppercase; letter-spacing:0.04em;}
+
+  /* PIN dots input */
+  .pin-display{display:flex; gap:12px; justify-content:center; margin:18px 0;}
+  .pin-dot{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--glass-border); transition:all 0.45s var(--ease-spring);}
+  .pin-dot.filled{background:linear-gradient(135deg, var(--accent-a), var(--accent-b)); border-color:transparent; transform:scale(1.2);}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; max-width:280px; margin:0 auto;}
+  .key{aspect-ratio:1; border-radius:50%; background:var(--glass-bg); border:1px solid var(--glass-border); font-size:20px; font-weight:500; color:var(--text-1); backdrop-filter:blur(12px); transition:transform 0.35s var(--ease-spring), background 0.35s;}
+  .key:active{transform:scale(0.92); background:var(--glass-bg-strong);}
+
+  /* ---------- Segmented glass pill nav (like reference image) ---------- */
+  .segwrap{position:fixed; bottom:20px; left:0; right:0; z-index:10; display:flex; justify-content:center; padding:0 16px;}
+  .segment{
+    display:flex; position:relative; padding:6px; border-radius:100px; max-width:560px; width:100%;
+    background:rgba(18,30,60,0.38); backdrop-filter:blur(26px) saturate(200%); -webkit-backdrop-filter:blur(26px) saturate(200%);
+    border:1px solid var(--glass-border);
+    box-shadow: inset 0 1.5px 1.5px rgba(255,255,255,0.5), inset 0 0 30px rgba(120,170,255,0.06), 0 16px 50px rgba(0,5,20,0.55);
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .segment::-webkit-scrollbar{display:none;}
+  .seg-indicator{
+    position:absolute; top:6px; bottom:6px; border-radius:100px;
+    background:linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
+    box-shadow:0 4px 16px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.9);
+    transition:transform 0.65s var(--ease-spring), width 0.65s var(--ease-spring);
+    z-index:0;
+  }
+  .seg-item{
+    position:relative; z-index:1; flex:1; min-width:64px; padding:11px 14px; border-radius:100px;
+    background:transparent; color:var(--text-2); font-size:10.5px; font-weight:700; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:4px; transition:color 0.55s var(--ease-smooth);
+    white-space:nowrap;
+  }
+  .seg-item.active{color:#14141f;}
+  .seg-item .ic{display:flex; transition:transform 0.55s var(--ease-spring);}
+  .seg-item.active .ic{transform:scale(1.1) translateY(-1px);}
+
+  /* ---------- Top bar ---------- */
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:6px 4px 20px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-dot{width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg, var(--accent-a), var(--accent-c)); display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 4px 20px rgba(123,108,255,0.5);}
+  .role-badge{font-size:10px; font-weight:800; letter-spacing:0.06em; padding:5px 12px; border-radius:100px; text-transform:uppercase;}
+  .role-admin{background:rgba(255,107,157,0.22); color:#ffb6d0; border:1px solid rgba(255,107,157,0.4);}
+  .role-manager{background:rgba(79,182,255,0.22); color:#a9dcff; border:1px solid rgba(79,182,255,0.4);}
+  .role-member{background:rgba(47,224,196,0.2); color:#a4f5e6; border:1px solid rgba(47,224,196,0.4);}
+
+  /* ---------- misc components ---------- */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;}
+  .stat{padding:18px; text-align:left;}
+  .stat .val{font-size:26px; font-weight:900; letter-spacing:-0.02em; margin-top:4px;}
+  .stat .val.pos{color:var(--ok);}
+  .stat .val.neg{color:var(--danger);}
+  h1.pos, h1.neg{color:var(--ok);}
+  h1.neg{color:var(--danger);}
+
+  .meal-pill{
+    width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; border:1px solid var(--glass-border); transition:all 0.55s var(--ease-spring); flex-shrink:0;
+  }
+  .meal-0{background:rgba(255,107,107,0.15); color:var(--text-3);}
+  .meal-1{background:rgba(255,184,108,0.25); color:#ffd9a8;}
+  .meal-2{background:rgba(47,224,196,0.25); color:#a4f5e6;}
+  .meal-3{background:linear-gradient(135deg, var(--accent-a), var(--accent-b)); color:#fff;}
+
+  .list-row{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.08);}
+  .list-row:last-child{border-bottom:none;}
+  .avatar{width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg, var(--accent-b), var(--accent-e)); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0;}
+
+  .toggle{width:46px; height:26px; border-radius:100px; background:rgba(255,255,255,0.1); border:1px solid var(--glass-border); position:relative; transition:background 0.45s;}
+  .toggle.on{background:linear-gradient(135deg, var(--accent-a), var(--accent-b));}
+  .toggle .knob{position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform 0.7s var(--ease-spring); box-shadow:0 2px 6px rgba(0,0,0,0.3);}
+  .toggle.on .knob{transform:translateX(20px);}
+
+  .chip{padding:6px 13px; border-radius:100px; font-size:11px; font-weight:700; border:1px solid var(--glass-border); background:var(--glass-bg);}
+  .chip.paid{background:rgba(62,224,138,0.2); color:#9df5c0; border-color:rgba(62,224,138,0.4);}
+  .chip.unpaid{background:rgba(255,107,107,0.15); color:#ffb3b3; border-color:rgba(255,107,107,0.35);}
+
+  .fab{position:fixed; bottom:96px; right:20px; z-index:9; width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, var(--accent-a), var(--accent-c)); box-shadow:0 8px 28px rgba(108,92,224,0.45); font-size:24px; display:flex; align-items:center; justify-content:center; transition:transform 0.45s var(--ease-spring);}
+  .fab:active{transform:scale(0.9);}
+
+  .modal-backdrop{position:fixed; inset:0; z-index:50; background:rgba(3,4,9,0.55); backdrop-filter:blur(8px); display:flex; align-items:flex-end; justify-content:center; animation:fadeIn 0.7s var(--ease-apple);}
+  @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+  .modal{width:100%; max-width:560px; padding:26px 20px 34px; border-radius:32px 32px 0 0; background:rgba(14,20,40,0.66); backdrop-filter:blur(30px) saturate(180%); border:1px solid var(--glass-border); border-bottom:none; animation:slideUp 0.85s var(--ease-apple); max-height:85vh; overflow-y:auto;}
+  @keyframes slideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
+  .modal-handle{width:40px; height:4px; border-radius:100px; background:var(--text-3); margin:0 auto 18px;}
+
+  .empty{text-align:center; padding:40px 20px; color:var(--text-3);}
+  .empty .ic{font-size:38px; margin-bottom:10px; opacity:0.6;}
+
+  .fade-cycle{animation:fadeCycle 0.8s var(--ease-spring);}
+  @keyframes fadeCycle{0%{transform:scale(0.82); opacity:0.4;} 100%{transform:scale(1); opacity:1;}}
+
+  .toast{position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:100; padding:12px 22px; border-radius:100px; background:rgba(20,26,45,0.85); backdrop-filter:blur(24px); border:1px solid var(--glass-border); font-size:13px; font-weight:600; animation:toastIn 0.6s var(--ease-spring), toastOut 0.5s ease 2.4s forwards;}
+  @keyframes toastIn{from{opacity:0; transform:translate(-50%,-20px);} to{opacity:1; transform:translate(-50%,0);}}
+  @keyframes toastOut{to{opacity:0; transform:translate(-50%,-20px);}}
+
+  .rule-item{display:flex; gap:12px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.08); align-items:flex-start;}
+  .rule-item:last-child{border-bottom:none;}
+  .rule-num{width:26px; height:26px; border-radius:50%; background:var(--glass-bg-strong); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; margin-top:1px;}
+  .fine-tag{color:var(--accent-c); font-weight:800;}
+
+  .loader{display:flex; align-items:center; justify-content:center; min-height:60vh; flex-direction:column; gap:16px;}
+  .spinner{width:44px; height:44px; border-radius:50%; border:3px solid rgba(255,255,255,0.15); border-top-color:var(--accent-b); animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  ::-webkit-scrollbar{width:0px;}
+</style>
+</head>
+<body>
+
+<div id="mesh">
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+  <div class="blob blob3"></div>
+</div>
+<div id="grain"></div>
+
+<div id="app"></div>
+
+<!-- Firebase (compat SDK — works without a bundler, plain script tag) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* ============================================================
+   STORAGE HELPERS — now backed by Firebase Firestore instead of
+   window.storage. Every key (e.g. 'mess:members') becomes a doc
+   in the 'messData' collection, holding a JSON-stringified value
+   under a 'value' field — this keeps sGet/sSet's own signatures
+   and every call site elsewhere in the app unchanged.
+============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBkH7nuHNlWwsQpPAWjd2LNtNNW_PAyArg",
+  authDomain: "mess-manager-v1.firebaseapp.com",
+  projectId: "mess-manager-v1",
+  storageBucket: "mess-manager-v1.firebasestorage.app",
+  messagingSenderId: "1009843578018",
+  appId: "1:1009843578018:web:983b99dbbbcd44e0aee3fb",
+  measurementId: "G-4T8VSD3N2L"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const messCollection = db.collection('messData');
+
+let pendingWrites = {}; // key -> value still waiting to sync after a failure
+let syncWarned = false;
+let loadFailed = false;
+
+async function sGet(key, fallback){
+  const {value} = await sGetStatus(key, fallback);
+  return value;
+}
+
+// Like sGet, but also reports whether the read actually succeeded.
+async function sGetStatus(key, fallback){
+  try{
+    const doc = await messCollection.doc(key).get();
+    return {value: doc.exists ? JSON.parse(doc.data().value) : fallback, ok:true};
+  }catch(e){
+    return {value: fallback, ok:false};
+  }
+}
+
+async function sSet(key, value){
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      await messCollection.doc(key).set({value: JSON.stringify(value)});
+      delete pendingWrites[key];
+      return true;
+    }catch(e){ /* retry */ }
+    await new Promise(res=>setTimeout(res, 350*(attempt+1)));
+  }
+  // still failed after retries — keep it queued and keep trying quietly in the background
+  pendingWrites[key] = value;
+  if(!syncWarned){
+    syncWarned = true;
+    toast('Connection hiccup — retrying in background');
+    setTimeout(()=>{ syncWarned=false; }, 10000);
+  }
+}
+
+// background flusher for anything that failed to save
+setInterval(async ()=>{
+  const keys = Object.keys(pendingWrites);
+  for(const k of keys){
+    try{
+      await messCollection.doc(k).set({value: JSON.stringify(pendingWrites[k])});
+      delete pendingWrites[k];
+    }catch(e){ /* still down, try again next tick */ }
+  }
+}, 5000);
+
+// Live sync: other members' changes only become visible once we re-read shared
+// storage. Poll quietly in the background so open screens catch up without a
+// manual refresh. Skipped while a modal/input is open so we never yank data
+// out from under someone mid-edit, and skipped on the setup/login screens
+// (those already re-check on visibilitychange).
+const SHARED_KEYS = ['mess:members','mess:meals','mess:guestMeals','mess:bazar','mess:bazarRoster',
+  'mess:billTypes','mess:bills','mess:billPayments','mess:rules','mess:notices','mess:mealOffRequests',
+  'mess:deposits','mess:mealRateOverride','mess:mealCycle','mess:dues','mess:customRoles',
+  'mess:permissions','mess:managerContact','mess:groupLink'];
+const SHARED_KEY_TO_STATE = {
+  'mess:members':'members','mess:meals':'meals','mess:guestMeals':'guestMeals','mess:bazar':'bazar',
+  'mess:bazarRoster':'bazarRoster','mess:billTypes':'billTypes','mess:bills':'bills',
+  'mess:billPayments':'billPayments','mess:rules':'rules','mess:notices':'notices',
+  'mess:mealOffRequests':'mealOffRequests','mess:deposits':'deposits','mess:mealRateOverride':'mealRateOverride',
+  'mess:mealCycle':'mealCycle','mess:dues':'dues','mess:customRoles':'customRoles',
+  'mess:permissions':'permissions','mess:managerContact':'managerContact','mess:groupLink':'groupLink',
+};
+let polling = false;
+async function pollSharedUpdates(){
+  if(polling) return;
+  if(state.loading || !state.currentUser || state.screen!=='app' || state.modal) return;
+  polling = true;
+  try{
+    const fresh = await Promise.all(SHARED_KEYS.map(k=>sGet(k, undefined)));
+    let changed = false;
+    SHARED_KEYS.forEach((k, i)=>{
+      const val = fresh[i];
+      if(val===undefined) return; // read failed/timed out — keep current value
+      const field = SHARED_KEY_TO_STATE[k];
+      const before = JSON.stringify(state[field]);
+      const after = JSON.stringify(val);
+      if(before !== after){ state[field] = val; changed = true; }
+    });
+    if(changed) render();
+  } finally {
+    polling = false;
+  }
+}
+setInterval(pollSharedUpdates, 8000);
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible') pollSharedUpdates();
+});
+
+/* ============================================================
+   APP STATE
+============================================================ */
+let state = {
+  loading:true,
+  members:[],          // {id,name,pin,role,joinedAt}
+  meals:{},            // {date:{memberId:count}}
+  guestMeals:[],        // {id,memberId,date,count,note}
+  bazar:[],            // {id,date,item,amount,addedBy,note,doneBy:[memberId,...]}
+  bazarRoster:{},       // {date:{a:memberId,b:memberId,done:bool}}
+  billTypes:[],        // {id,label}
+  bills:{},            // {billTypeId: amount}
+  billPayments:{},     // {memberId:{billTypeId:bool}}
+  rules:[],
+  notices:[],
+  mealOffRequests:[],  // {id,memberId,date,endDate,status,action:'off'|'on',requestedAt}
+  deposits:[],         // {id,memberId,amount,date,time,addedBy,addedById,removed,removedBy,removedAt,note}
+  mealRateOverride:null, // null = auto-calculated from bazar, or a fixed number set by admin
+  mealCycle:{},        // {memberId: 2|3} — cooking-planning only, no money effect
+  dues:[],             // {id,memberIds:[...],amounts:{memberId:amount},reason,addedBy,date}
+  customRoles:[],       // {id,label}
+  permissions:{},       // {roleKey: {mealToggle,bazarEntry,billEdit,removeMember,postNotice,approveRequests,assignDuty,dueEdit}}
+  managerContact:{month:null, note:''}, // optional extra note for the current manager
+  groupLink:'',         // Messenger/WhatsApp group join link
+  chartFullscreen:false,
+  adminMembersExpanded:false,
+  currentUser:null,    // logged in member object
+  screen:'login',
+  tab:'dashboard',
+  loginStep:'select',  // select -> pin
+  selectedMemberForLogin:null,
+  pinBuffer:'',
+  modal:null,
+};
+
+const DEFAULT_PERMISSIONS = {
+  manager: { mealToggle:true, bazarEntry:true, billEdit:false, removeMember:false, postNotice:true, approveRequests:true, assignDuty:true, dueEdit:false },
+};
+function getPerms(roleKey){ return state.permissions[roleKey] || DEFAULT_PERMISSIONS[roleKey] || {}; }
+// True for admin always; for manager/custom roles, checks the configured permission.
+function hasPerm(action){
+  const u = state.currentUser;
+  if(!u) return false;
+  if(u.role==='admin') return true;
+  return !!getPerms(u.role)[action];
+}
+
+const ICONS = {
+  home: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V19a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>`,
+  meals: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2.5v7.5a2 2 0 0 0 2 2V21"/><path d="M11 2.5v7.5"/><path d="M17 2.5c-1.7 0-3 1.8-3 4.5v2.5a2 2 0 0 0 2 2V21"/></svg>`,
+  cart: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.1"/><circle cx="18" cy="20" r="1.1"/><path d="M2.5 3h2l2.6 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6"/></svg>`,
+  bolt: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 14h6l-1 8 9-13h-6l1-7Z"/></svg>`,
+  list: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>`,
+  gear: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>`,
+  power: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>`,
+  back: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
+  arrow: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`,
+  empty: `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  minus: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`,
+};
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function nowTimeStr(){ return new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); }
+function monthStr(d){ return (d||todayStr()).slice(0,7); }
+function fmtDate(d){ const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric'}); }
+function daysInMonth(ym){ const [y,mo]=(ym||monthStr()).split('-').map(Number); return new Date(y,mo,0).getDate(); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+// Escape any user-supplied text before it's dropped into innerHTML — this is SHARED data,
+// so an unescaped name/note could run script in every other member's browser.
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Positive-only numeric parse for money/count fields — rejects negative, NaN, and zero.
+function positiveNumber(val){ const n = Number(val); return (isFinite(n) && n>0) ? n : null; }
+function toast(msg){
+  const el = document.createElement('div');
+  el.className='toast'; el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 2700);
+}
+
+/* ============================================================
+   LOAD / SAVE
+============================================================ */
+const DEFAULT_BILL_TYPES = [
+  {id:'bua', label:'Bua (Cook)'},
+  {id:'wifi', label:'Wifi'},
+  {id:'electricity', label:'Electricity'},
+  {id:'cleaning', label:'Cleaning'},
+];
+
+async function loadAll(attempt){
+  attempt = attempt || 0;
+  state.loading = true;
+  loadFailed = false;
+  render(); // show the spinner immediately instead of a blank screen
+
+  const membersStatus = await sGetStatus('mess:members', []);
+
+  // Read the rest concurrently — the earlier "read one at a time" approach
+  // caused worst-case load times to multiply (18 sequential 4s timeouts ≈ over
+  // a minute) instead of overlapping, which made hangs far worse, not better.
+  // Concurrent reads with a bounded per-call timeout are both faster and safer.
+  const loadKeys = [
+    ['mess:meals', {}], ['mess:guestMeals', []], ['mess:bazar', []], ['mess:bazarRoster', {}],
+    ['mess:billTypes', DEFAULT_BILL_TYPES], ['mess:bills', {bua:0,wifi:0,electricity:0,cleaning:0}],
+    ['mess:billPayments', {}], ['mess:rules', DEFAULT_RULES], ['mess:notices', []],
+    ['mess:mealOffRequests', []], ['mess:deposits', []], ['mess:mealRateOverride', null],
+    ['mess:mealCycle', {}], ['mess:dues', []], ['mess:customRoles', []], ['mess:permissions', {}],
+    ['mess:managerContact', {month:null, note:''}], ['mess:groupLink', ''],
+  ];
+  const results = await Promise.all(loadKeys.map(([key, fallback])=>sGet(key, fallback)));
+  const loaded = {};
+  loadKeys.forEach(([key], i)=>{ loaded[key] = results[i]; });
+  const {
+    'mess:meals':meals, 'mess:guestMeals':guestMeals, 'mess:bazar':bazar, 'mess:bazarRoster':bazarRoster,
+    'mess:billTypes':billTypes, 'mess:bills':bills, 'mess:billPayments':billPayments, 'mess:rules':rules,
+    'mess:notices':notices, 'mess:mealOffRequests':mealOffRequests, 'mess:deposits':deposits,
+    'mess:mealRateOverride':mealRateOverride, 'mess:mealCycle':mealCycle, 'mess:dues':dues,
+    'mess:customRoles':customRoles, 'mess:permissions':permissions, 'mess:managerContact':managerContact,
+    'mess:groupLink':groupLink,
+  } = loaded;
+
+  // The members read failing is the dangerous case: treating it as "empty" would
+  // wrongly bounce an existing mess back to admin setup. If it failed and we
+  // haven't retried much yet, try again instead of guessing — with a short pause first,
+  // in case it was a transient network/Firestore hiccup right after page load.
+  if(!membersStatus.ok && attempt < 3){
+    await new Promise(res=>setTimeout(res, 300*(attempt+1)));
+    return loadAll(attempt+1);
+  }
+
+  const members = membersStatus.value;
+  Object.assign(state, {members, meals, guestMeals, bazar, bazarRoster, billTypes, bills, billPayments, rules, notices, mealOffRequests, deposits, mealRateOverride, mealCycle, dues, customRoles, permissions, managerContact, groupLink, loading:false});
+
+  if(members.length===0){
+    if(membersStatus.ok){
+      state.screen='setup';
+    } else {
+      // Exhausted retries and still couldn't confirm whether members exist.
+      // Do NOT assume "no one has set up yet" — that's how existing setups
+      // got sent back through admin setup. Show a retry screen instead.
+      loadFailed = true;
+    }
+  }
+  render();
+}
+// Cooking-planning cycle: 2 (lunch+dinner) or 3 (breakfast+lunch+dinner). Purely informational —
+// never affects money or the meal-count total. Defaults to 2.
+function getMealCycle(memberId){ return state.mealCycle[memberId] || 2; }
+async function setMealCycle(memberId, val){
+  state.mealCycle[memberId] = val;
+  await sSet('mess:mealCycle', state.mealCycle);
+}
+
+const DEFAULT_RULES = [
+"ওয়াশরুমের লাইট জ্বালিয়ে রাখলে বা রুমের ফ্যান/লাইট অন রেখে বাইরে চলে গেলে ৫০ টাকা জরিমানা।",
+"টয়লেটে ব্যবহারের পর পানি না দিলে ২০০ টাকা জরিমানা।",
+"গোসলখানায় ময়লা ফেললে ১০০ টাকা জরিমানা।",
+"করিডোরে ময়লা ফেললে ১০০ টাকা জরিমানা।",
+"জুতা পরে ওয়াশরুমে প্রবেশ করলে ১০০ টাকা জরিমানা।",
+"মিলের টাকা জমা দিলে প্রথমে বুয়ার বেতনের টাকা কেটে রাখা হবে, বাকি টাকা মিলের হিসাবে যোগ হবে।",
+"প্রত্যেকের জন্য নির্ধারিত তারিখে ওয়াশরুম পরিষ্কার করতে হবে। কেউ নির্ধারিত তারিখে পরিষ্কার না করলে তাকে পরবর্তী ২ সপ্তাহ ওয়াশরুম পরিষ্কার করতে হবে (সর্বোচ্চ ৩ বার) এবং সাথে ১০০ টাকা জরিমানা দিতে হবে।",
+"নিজের মিল সময়মতো নিজ দায়িত্বে নিয়ে আসতে হবে। মিল চুরি হয়ে গেলে এর জন্য কেউ দায়ী থাকবে না।",
+"মেইন গেট ও ছাদের গেট ব্যবহারের সময় (ঢোকা বা বের হওয়ার পর) অবশ্যই তালা দিতে হবে। কেউ মেইন গেট খোলা রাখলে ২০০ টাকা জরিমানা।",
+"ওয়াশরুমে কারো ব্যক্তিগত জিনিসপত্র রাখা যাবে না।",
+"কারো কোনো গেস্ট বা বন্ধু মেসে আসলে, আসার আগেই গ্রুপে জানিয়ে দিতে হবে।"
+];
+
+/* ============================================================
+   COMPUTATIONS
+============================================================ */
+function memberById(id){ return state.members.find(m=>m.id===id); }
+
+function isPastOrToday(date){ return date <= todayStr(); }
+// A "meal day" counts as 1 flat day if the member's meal was ON that day (any value > 0),
+// regardless of whether their cycle was set to 2 or 3 — cycle is cooking-planning only and
+// never affects money. Only past + today's dates count toward cost; future-dated chart
+// toggles are pure planning and have zero financial effect until that date actually arrives.
+function monthMealsForMember(memberId, ym){
+  ym = ym || monthStr();
+  let total = 0;
+  for(const date in state.meals){
+    if(date.startsWith(ym) && isPastOrToday(date)){
+      if((state.meals[date][memberId]||0) > 0) total += 1;
+    }
+  }
+  state.guestMeals.forEach(g=>{ if(g.memberId===memberId && g.date.startsWith(ym) && isPastOrToday(g.date)) total += g.count; });
+  return total;
+}
+function monthTotalMeals(ym){
+  ym = ym || monthStr();
+  return state.members.reduce((sum,m)=>sum+monthMealsForMember(m.id, ym), 0);
+}
+function monthBazarTotal(ym){
+  ym = ym || monthStr();
+  return state.bazar.filter(b=>b.date.startsWith(ym)).reduce((s,b)=>s+Number(b.amount),0);
+}
+function mealRate(ym){
+  if(state.mealRateOverride!=null) return Number(state.mealRateOverride);
+  const totalMeals = monthTotalMeals(ym);
+  if(totalMeals===0) return 0;
+  return monthBazarTotal(ym)/totalMeals;
+}
+function memberDepositTotal(memberId, ym){
+  ym = ym || monthStr();
+  return state.deposits.filter(d=>d.memberId===memberId && d.date.startsWith(ym) && !d.removed).reduce((s,d)=>s+Number(d.amount),0);
+}
+function activeDeposits(){ return state.deposits.filter(d=>!d.removed); }
+function totalDepositsAllTime(){ return activeDeposits().reduce((s,d)=>s+Number(d.amount),0); }
+function totalBazarAllTime(){ return state.bazar.reduce((s,b)=>s+Number(b.amount),0); }
+function totalMessBalance(){ return totalDepositsAllTime() - totalBazarAllTime(); }
+function memberFoodCost(memberId, ym){
+  return monthMealsForMember(memberId, ym) * mealRate(ym);
+}
+function memberBalance(memberId, ym){
+  return memberDepositTotal(memberId, ym) - memberFoodCost(memberId, ym);
+}
+function billTotalPerMember(){
+  const total = state.billTypes.reduce((s,bt)=> s + (Number(state.bills[bt.id])||0), 0);
+  const n = state.members.length || 1;
+  return total / n;
+}
+
+/* ============================================================
+   RENDER ROOT
+============================================================ */
+function render(){
+  const app = document.getElementById('app');
+  if(state.loading){
+    app.innerHTML = `<div class="loader"><div class="spinner"></div><p class="muted">Loading mess data…</p></div>`;
+    return;
+  }
+  if(loadFailed){
+    app.innerHTML = `<div class="loader">
+      <p class="muted" style="margin-bottom:16px; text-align:center; max-width:280px;">Couldn't find shared storage on this page — nothing has been set up or saved. Reloading usually fixes this.</p>
+      <button class="btn btn-primary" id="retryLoadBtn">Retry</button>
+    </div>`;
+    const btn = document.getElementById('retryLoadBtn');
+    if(btn) btn.onclick = ()=>loadAll();
+    return;
+  }
+  if(!state.currentUser){
+    app.innerHTML = renderAuth();
+    bindAuthEvents();
+    return;
+  }
+  app.innerHTML = renderShell();
+  bindShellEvents();
+}
+
+/* ============================================================
+   AUTH / SETUP / LOGIN
+============================================================ */
+function renderAuth(){
+  if(state.screen==='setup') return renderSetup();
+  return renderLogin();
+}
+
+function renderSetup(){
+  return `
+  <div class="screen" style="padding-top:60px;">
+    <div class="col" style="align-items:center; margin-bottom:28px; text-align:center;">
+      <div class="brand-dot" style="width:60px;height:60px;margin-bottom:16px;">${ICONS.home}</div>
+      <h1>Welcome</h1>
+      <p class="muted" style="margin-top:6px;">Let's set up your mess. Create the admin account first.</p>
+    </div>
+    <div class="glass card">
+      <label>Your Name</label>
+      <input id="setupName" placeholder="e.g. Hikaru" style="margin-bottom:16px;">
+      <label>Set a 4-digit Admin PIN</label>
+      <div class="pin-display" id="pinDisplay">${pinDots(state.pinBuffer)}</div>
+      <div class="keypad" id="setupKeypad">${keypadHtml()}</div>
+    </div>
+    <p class="tiny" style="text-align:center; margin-top:14px;">You'll be the Admin with full control over the mess.</p>
+  </div>`;
+}
+
+function pinDots(buf){
+  let html='';
+  for(let i=0;i<4;i++){ html+=`<div class="pin-dot ${i<buf.length?'filled':''}"></div>`; }
+  return html;
+}
+function keypadHtml(){
+  const keys=['1','2','3','4','5','6','7','8','9','⌫','0','ok'];
+  return keys.map(k=>{
+    if(k==='ok') return `<button class="key" data-key="ok" style="background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); border:none; display:flex; align-items:center; justify-content:center;">${ICONS.check}</button>`;
+    if(k==='⌫') return `<button class="key" data-key="back">⌫</button>`;
+    return `<button class="key" data-key="${k}">${k}</button>`;
+  }).join('');
+}
+
+function renderLogin(){
+  if(state.loginStep==='pin'){
+    const m = state.selectedMemberForLogin;
+    return `
+    <div class="screen" style="padding-top:60px;">
+      <button class="icon-btn" id="backToSelect" style="margin-bottom:24px;">${ICONS.back}</button>
+      <div class="col" style="align-items:center; margin-bottom:24px; text-align:center;">
+        <div class="avatar" style="width:64px;height:64px;font-size:22px;margin-bottom:14px;">${initials(m.name)}</div>
+        <h2>Hi, ${m.name}</h2>
+        <p class="muted">Enter your PIN</p>
+      </div>
+      <div class="pin-display" id="pinDisplay">${pinDots(state.pinBuffer)}</div>
+      <div class="keypad" id="loginKeypad">${keypadHtml()}</div>
+    </div>`;
+  }
+  return `
+  <div class="screen" style="padding-top:50px;">
+    <div class="col" style="align-items:center; margin-bottom:30px; text-align:center;">
+      <div class="brand-dot" style="width:56px;height:56px;margin-bottom:14px;">${ICONS.home}</div>
+      <h1>Mess Manager</h1>
+      <p class="muted" style="margin-top:6px;">Select your name to continue</p>
+    </div>
+    <div class="stack">
+      ${state.members.map(m=>`
+        <div class="glass card row" data-select-member="${m.id}" style="cursor:pointer;">
+          <div class="row" style="gap:12px;">
+            <div class="avatar">${initials(m.name)}</div>
+            <div class="col" style="gap:2px;">
+              <p style="font-weight:700; font-size:15px;">${m.name}</p>
+              <p class="tiny">${m.role.toUpperCase()}</p>
+            </div>
+          </div>
+          <span style="opacity:0.5;">→</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+function initials(name){ return (name||'?').trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+
+function bindAuthEvents(){
+  if(state.screen==='setup'){
+    const nameInput = document.getElementById('setupName');
+    if(nameInput) nameInput.oninput = e=>{ state._setupName = e.target.value; };
+    document.getElementById('setupKeypad').querySelectorAll('.key').forEach(btn=>{
+      btn.onclick = ()=>handleKeypad(btn.dataset.key, 'setup');
+    });
+    return;
+  }
+  if(state.loginStep==='select'){
+    document.querySelectorAll('[data-select-member]').forEach(el=>{
+      el.onclick = ()=>{
+        state.selectedMemberForLogin = memberById(el.dataset.selectMember);
+        state.loginStep='pin'; state.pinBuffer='';
+        render();
+      };
+    });
+  } else {
+    document.getElementById('backToSelect').onclick = ()=>{ state.loginStep='select'; state.pinBuffer=''; render(); };
+    document.querySelectorAll('.keypad .key').forEach(btn=>{
+      btn.onclick = ()=>handleKeypad(btn.dataset.key, 'login');
+    });
+  }
+}
+
+function updatePinDots(){
+  const el = document.getElementById('pinDisplay');
+  if(el) el.innerHTML = pinDots(state.pinBuffer);
+}
+
+function handleKeypad(key, mode){
+  if(key==='back'){ state.pinBuffer = state.pinBuffer.slice(0,-1); updatePinDots(); return; }
+  if(key==='ok'){
+    if(mode==='setup'){ trySetupSubmit(); } else { tryLoginSubmit(); }
+    return;
+  }
+  if(state.pinBuffer.length<4){ state.pinBuffer += key; }
+  updatePinDots();
+  if(state.pinBuffer.length===4){
+    setTimeout(()=>{ mode==='setup' ? trySetupSubmit() : tryLoginSubmit(); }, 280);
+  }
+}
+
+let setupInFlight = false;
+async function trySetupSubmit(){
+  if(setupInFlight) return; // block double-tap / double-submit
+  const name = esc((state._setupName||'').trim());
+  if(!name){ toast('Please enter your name'); return; }
+  if(state.pinBuffer.length!==4){ toast('Enter a 4-digit PIN'); return; }
+  setupInFlight = true;
+  try{
+    // Re-check shared storage right before creating the admin — someone
+    // else (or an earlier stale tab) may have already completed setup.
+    // Use the status-aware read here: if this check fails/times out, we must
+    // NOT silently treat that as "no admin yet" — that's exactly how a
+    // duplicate admin could get created. Fail safe and ask to retry instead.
+    const freshCheck = await sGetStatus('mess:members', []);
+    if(!freshCheck.ok){
+      toast('Connection hiccup — please try again');
+      return;
+    }
+    const freshMembers = freshCheck.value;
+    if(freshMembers.length > 0){
+      state.members = freshMembers;
+      toast('Mess is already set up — please log in');
+      state.screen='app'; state.loginStep='select'; state.pinBuffer=''; state.currentUser=null;
+      render();
+      return;
+    }
+    const admin = {id:uid(), name, pin:state.pinBuffer, role:'admin', joinedAt:todayStr()};
+    state.members = [admin];
+    await sSet('mess:members', state.members);
+    await sSet('mess:rules', state.rules);
+    state.currentUser = admin;
+    state.screen='app'; state.tab='dashboard'; state.pinBuffer='';
+    render();
+    toast('Welcome, Admin '+name);
+  } finally {
+    setupInFlight = false;
+  }
+}
+
+function tryLoginSubmit(){
+  const m = state.selectedMemberForLogin;
+  if(!m) return;
+  if(state.pinBuffer===m.pin){
+    state.currentUser = m; state.screen='app'; state.tab='dashboard'; state.pinBuffer='';
+    render();
+    toast('Welcome back, '+m.name);
+  } else {
+    toast('Incorrect PIN');
+    state.pinBuffer='';
+    updatePinDots();
+  }
+}
+
+/* ============================================================
+   SHELL (post-login)
+============================================================ */
+function tabsForRole(role){
+  const base = [
+    {id:'dashboard', ic:ICONS.home, label:'Home'},
+    {id:'meals', ic:ICONS.meals, label:'Meals'},
+    {id:'bazar', ic:ICONS.cart, label:'Bazar'},
+    {id:'bills', ic:ICONS.bolt, label:'Bills'},
+    {id:'rules', ic:ICONS.list, label:'Rules'},
+    {id:'notices', ic:ICONS.bell, label:'News'},
+  ];
+  if(role==='admin') base.push({id:'admin', ic:ICONS.gear, label:'Admin'});
+  return base;
+}
+
+function renderShell(){
+  const u = state.currentUser;
+  const tabs = tabsForRole(u.role);
+  const activeIdx = tabs.findIndex(t=>t.id===state.tab);
+  return `
+    <div class="screen" style="padding-bottom:120px;">
+      <div class="topbar">
+        <div class="brand" id="myBrandBlock" style="cursor:pointer;">
+          <div class="brand-dot">${ICONS.home}</div>
+          <div class="col" style="gap:1px;">
+            <p style="font-weight:800; font-size:15px;">${u.name}</p>
+            <span class="role-badge role-${u.role}">${u.role}</span>
+          </div>
+        </div>
+        <button class="icon-btn" id="logoutBtn">${ICONS.power}</button>
+      </div>
+      ${renderTab()}
+    </div>
+    <div class="segwrap">
+      <div class="segment" id="segment">
+        <div class="seg-indicator" id="segIndicator"></div>
+        ${tabs.map(t=>`<button class="seg-item ${t.id===state.tab?'active':''}" data-tab="${t.id}"><span class="ic">${t.ic}</span><span>${t.label}</span></button>`).join('')}
+      </div>
+    </div>
+    ${state.modal ? renderModal() : ''}
+  `;
+}
+
+function bindShellEvents(){
+  document.getElementById('logoutBtn').onclick = ()=>{
+    state.currentUser=null; state.loginStep='select'; state.pinBuffer=''; state.selectedMemberForLogin=null;
+    render();
+  };
+  const brand = document.getElementById('myBrandBlock');
+  if(brand) brand.onclick = ()=>{ state.modal={type:'memberDetail', memberId: state.currentUser.id}; render(); };
+  const seg = document.getElementById('segment');
+  seg.querySelectorAll('.seg-item').forEach(btn=>{
+    btn.onclick = ()=>{ state.tab = btn.dataset.tab; state.modal=null; render(); };
+  });
+  positionIndicator();
+  window.onresize = positionIndicator;
+  bindTabEvents();
+  if(state.modal) bindModalEvents();
+}
+
+function positionIndicator(){
+  const seg = document.getElementById('segment');
+  const ind = document.getElementById('segIndicator');
+  if(!seg||!ind) return;
+  const active = seg.querySelector('.seg-item.active');
+  if(!active) return;
+  ind.style.width = active.offsetWidth+'px';
+  ind.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+
+/* ============================================================
+   TAB ROUTER
+============================================================ */
+function renderTab(){
+  switch(state.tab){
+    case 'dashboard': return renderDashboard();
+    case 'meals': return renderMeals();
+    case 'bazar': return renderBazar();
+    case 'bills': return renderBills();
+    case 'rules': return renderRules();
+    case 'notices': return renderNotices();
+    case 'admin': return renderAdmin();
+    default: return '';
+  }
+}
+function bindTabEvents(){
+  switch(state.tab){
+    case 'dashboard': return bindDashboard();
+    case 'meals': return bindMeals();
+    case 'bazar': return bindBazar();
+    case 'bills': return bindBills();
+    case 'rules': return bindRules();
+    case 'notices': return bindNotices();
+    case 'admin': return bindAdmin();
+  }
+}
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+function renderDashboard(){
+  const u = state.currentUser;
+  const ym = monthStr();
+  const rate = mealRate(ym);
+  const myMeals = monthMealsForMember(u.id, ym);
+  const myDeposit = memberDepositTotal(u.id, ym);
+  const myCost = memberFoodCost(u.id, ym);
+  const bal = myDeposit - myCost;
+  const todayOn = ((state.meals[todayStr()]||{})[u.id] ?? 1) > 0;
+  const myCycle = getMealCycle(u.id);
+  const pendingReq = state.mealOffRequests.filter(r=>r.status==='pending');
+
+  const messBal = totalMessBalance();
+  const activeDeps = activeDeposits().slice().reverse();
+  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const reactivatingTomorrow = state.mealOffRequests.find(r=>r.memberId===u.id && r.status==='approved' && r.action==='off' && (r.endDate||r.date)===tomorrow);
+  const currentManager = state.members.find(m=>m.role==='manager');
+  const myDue = memberDueTotal(u.id);
+
+  return `
+    ${currentManager ? `
+    <div class="glass card" style="padding:14px 18px;">
+      <div class="row">
+        <div class="col" style="gap:2px;">
+          <p class="tiny">এই মাসের ম্যানেজার</p>
+          <p style="font-weight:700; font-size:14px;">${currentManager.name}${currentManager.phone?' · '+currentManager.phone:''}</p>
+        </div>
+        ${state.groupLink ? `<a href="${state.groupLink}" target="_blank" class="btn btn-sm btn-ghost" style="text-decoration:none;">Group Link</a>` : ''}
+      </div>
+    </div>` : ''}
+    ${myDue>0 ? `<div class="glass card" style="background:rgba(224,98,95,0.12); border-color:rgba(224,98,95,0.4);"><p style="font-size:13px;">তোমার বকেয়া আছে: <strong>৳${myDue.toFixed(0)}</strong> — বিস্তারিত দেখতে উপরে তোমার নামে ট্যাপ করো।</p></div>` : ''}
+    ${reactivatingTomorrow ? `<div class="glass card" style="background:rgba(214,154,78,0.12); border-color:rgba(214,154,78,0.4);"><p style="font-size:13px;">🔔 কালকে (${fmtDate(tomorrow)}) তোমার মিল আবার অন হয়ে যাবে।</p></div>` : ''}
+    <div class="glass card" style="text-align:center; padding:22px 18px;">
+      <p class="muted">Mess Total Balance (everyone's deposits − all bazar spent)</p>
+      <h1 style="margin-top:6px; font-size:32px;" class="${messBal>=0?'pos':'neg'}">৳${messBal.toFixed(0)}</h1>
+      <p class="tiny" style="margin-top:6px;">৳${totalDepositsAllTime().toFixed(0)} deposited so far − ৳${totalBazarAllTime().toFixed(0)} spent on bazar</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="glass stat"><p class="muted">This Month's Meals</p><p class="val">${myMeals}</p></div>
+      <div class="glass stat"><p class="muted">Meal Rate</p><p class="val">৳${rate.toFixed(1)}</p></div>
+      <div class="glass stat"><p class="muted">Your Deposit</p><p class="val">৳${myDeposit.toFixed(0)}</p></div>
+      <div class="glass stat"><p class="muted">Your Balance</p><p class="val ${bal>=0?'pos':'neg'}">${bal>=0?'+':''}৳${bal.toFixed(0)}</p></div>
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Today's Meal</h3>
+        <span class="chip">${fmtDate(todayStr())}</span>
+      </div>
+      <div class="row">
+        <p class="muted">Meal today</p>
+        <span class="chip" style="background:${todayOn?'rgba(62,224,138,0.22)':'rgba(224,98,95,0.22)'}; color:${todayOn?'#7dffc0':'#ffb0ad'};">${todayOn?'ON':'OFF'}</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <p class="muted">Your cooking cycle</p>
+        <div class="meal-pill meal-${myCycle} fade-cycle" id="todayMealPill" title="Cooking count only — doesn't affect money">${myCycle}</div>
+      </div>
+      <p class="tiny" style="margin-top:10px;">You've eaten ${myMeals} meal-days this month · food cost so far ৳${myCost.toFixed(0)} · deposited ৳${myDeposit.toFixed(0)} → balance ${bal>=0?'+':''}৳${bal.toFixed(0)}</p>
+      ${u.role!=='member' ? '' : `<button class="btn btn-ghost btn-full" id="requestOffBtn" style="margin-top:14px;">Request Meal Off / On</button>`}
+    </div>
+
+    ${(u.role==='admin'||u.role==='manager') ? `
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Deposits</h3>
+        <button class="icon-btn" style="width:32px;height:32px;" id="addDepositBtn">${ICONS.plus}</button>
+      </div>
+      ${activeDeps.slice(0,6).map(d=>{ const m=memberById(d.memberId); return `
+        <div class="list-row" data-deposit-detail="${d.id}" style="cursor:pointer;">
+          <p style="font-size:13px; font-weight:600;">${m?m.name:'?'}</p>
+          <div class="col" style="align-items:flex-end; gap:2px;">
+            <p style="font-weight:800;">৳${Number(d.amount).toFixed(0)}</p>
+            <p class="tiny">${fmtDate(d.date)}${d.time?' · '+d.time:''}</p>
+          </div>
+        </div>`; }).join('') || `<p class="muted" style="text-align:center; padding:10px 0;">No deposits logged yet</p>`}
+    </div>` : ''}
+
+    ${(u.role==='admin'||u.role==='manager') && pendingReq.length>0 ? `
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Pending Meal-Off Requests (${pendingReq.length})</h3>
+      ${pendingReq.map(r=>{ const m=memberById(r.memberId); const range = (r.endDate && r.endDate!==r.date) ? `${fmtDate(r.date)} → ${fmtDate(r.endDate)}` : fmtDate(r.date); return `
+        <div class="list-row">
+          <div class="col" style="gap:2px;">
+            <p style="font-weight:700; font-size:13px;">${m?m.name:'Unknown'} <span class="tiny">wants meal ${(r.action||'off').toUpperCase()}</span></p>
+            <p class="tiny">${range}${r.requestedAt?' · sent '+new Date(r.requestedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''}</p>
+          </div>
+          <div class="row" style="gap:8px;">
+            <button class="btn btn-sm" style="background:rgba(62,224,138,0.25);" data-approve="${r.id}">✓</button>
+            <button class="btn btn-sm btn-danger" data-deny="${r.id}">✕</button>
+          </div>
+        </div>`; }).join('')}
+    </div>` : ''}
+
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Recent Notices</h3>
+      ${state.notices.slice(-3).reverse().map(n=>`
+        <div class="list-row">
+          <div class="col" style="gap:2px;">
+            <p style="font-size:13px;">${n.text}</p>
+            <p class="tiny">${fmtDate(n.date)}</p>
+          </div>
+        </div>`).join('') || `<p class="muted" style="text-align:center; padding:14px 0;">No notices yet</p>`}
+    </div>
+  `;
+}
+
+function bindDashboard(){
+  const u = state.currentUser;
+  const reqBtn = document.getElementById('requestOffBtn');
+  if(reqBtn) reqBtn.onclick = ()=>{ openMealOffModal(); };
+  const depBtn = document.getElementById('addDepositBtn');
+  if(depBtn) depBtn.onclick = ()=>{ state.modal={type:'deposit'}; render(); };
+  document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async ()=>{
+    const r = state.mealOffRequests.find(x=>x.id===b.dataset.approve);
+    r.status='approved';
+    // Apply to every date in the range — chart auto-updates, no manual grid tapping needed.
+    let d = new Date(r.date+'T00:00:00');
+    const end = new Date((r.endDate||r.date)+'T00:00:00');
+    while(d<=end){
+      const ds = d.toISOString().slice(0,10);
+      const meals = state.meals[ds] || (state.meals[ds]={});
+      meals[r.memberId] = (r.action==='on') ? 1 : 0;
+      d.setDate(d.getDate()+1);
+    }
+    await sSet('mess:mealOffRequests', state.mealOffRequests);
+    await sSet('mess:meals', state.meals);
+    toast('Request approved'); render();
+  });
+  document.querySelectorAll('[data-deny]').forEach(b=>b.onclick=async ()=>{
+    const r = state.mealOffRequests.find(x=>x.id===b.dataset.deny);
+    r.status='denied';
+    await sSet('mess:mealOffRequests', state.mealOffRequests);
+    toast('Request denied'); render();
+  });
+  document.querySelectorAll('[data-deposit-detail]').forEach(el=>{
+    el.onclick = ()=>{ state.modal = {type:'depositDetail', depositId: el.dataset.depositDetail}; render(); };
+  });
+}
+
+function openMealOffModal(){
+  state.modal = {type:'mealOffRequest'};
+  render();
+}
+
+/* ============================================================
+   MEALS TAB
+============================================================ */
+function renderMeals(){
+  const u = state.currentUser;
+  const canEdit = hasPerm('mealToggle');
+  const today = todayStr();
+  const todayMeals = state.meals[today] || {};
+  const onMembers = state.members.filter(m => ((todayMeals[m.id] ?? 1) > 0));
+  const breakfastCount = onMembers.filter(m => getMealCycle(m.id)===3).length;
+  const lunchDinnerCount = onMembers.length;
+
+  return `
+    <div class="glass card" style="padding:18px;">
+      <h3 style="margin-bottom:12px;">Cooking Count — ${fmtDate(today)}</h3>
+      <div class="stat-grid">
+        <div class="glass stat" style="padding:14px;"><p class="muted" style="font-size:11px;">সকাল (breakfast)</p><p class="val" style="font-size:22px;">${breakfastCount}</p></div>
+        <div class="glass stat" style="padding:14px;"><p class="muted" style="font-size:11px;">দুপুর + রাত</p><p class="val" style="font-size:22px;">${lunchDinnerCount}</p></div>
+      </div>
+      <p class="tiny" style="margin-top:10px; text-align:center;">মোট ${lunchDinnerCount} জনের মিল চলছে আজকে</p>
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:14px;">
+        <h3>Cooking Cycle</h3>
+        <span class="tiny">শুধু রান্নার হিসাব — টাকায় প্রভাব নেই</span>
+      </div>
+      ${state.members.map(m=>{
+        const cyc = getMealCycle(m.id);
+        const mine = m.id===u.id;
+        const editable = canEdit || mine;
+        return `
+        <div class="list-row">
+          <div class="row" style="gap:10px;">
+            <div class="avatar">${initials(m.name)}</div>
+            <p style="font-weight:600; font-size:14px;">${m.name}</p>
+          </div>
+          <div class="meal-pill meal-${cyc} fade-cycle" ${editable?`data-cycle-toggle="${m.id}" style="cursor:pointer;"`:''}>${cyc}</div>
+        </div>
+      `;}).join('')}
+    </div>
+
+    ${renderMealGrid()}
+
+    ${canEdit ? `<button class="btn btn-primary btn-full" id="addGuestMealBtn" style="margin-bottom:14px;">+ Add Guest Meal</button>` : ''}
+
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">This Month Summary</h3>
+      ${state.members.map(m=>{
+        const total = monthMealsForMember(m.id);
+        return `<div class="list-row">
+          <p style="font-size:13px; font-weight:600;">${m.name}</p>
+          <p class="tiny" style="font-size:13px; font-weight:700; color:var(--text-1);">${total} meals</p>
+        </div>`;
+      }).join('')}
+      <div class="row" style="padding-top:12px;">
+        <p class="muted">Total meals (mess)</p>
+        <p style="font-weight:800;">${monthTotalMeals()}</p>
+      </div>
+    </div>
+
+    ${state.guestMeals.length>0 ? `
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Guest Meals</h3>
+      ${state.guestMeals.slice(-6).reverse().map(g=>{ const m=memberById(g.memberId); return `
+        <div class="list-row">
+          <div class="col" style="gap:2px;">
+            <p style="font-size:13px; font-weight:600;">${m?m.name:'?'} <span class="tiny">×${g.count}</span></p>
+            <p class="tiny">${fmtDate(g.date)}${g.note?' · '+g.note:''}</p>
+          </div>
+        </div>`; }).join('')}
+    </div>` : ''}
+
+    ${state.chartFullscreen ? renderMealGridFullscreen() : ''}
+  `;
+}
+
+function mealGridCell(m, dateStr, canEdit, big){
+  const val = (state.meals[dateStr]||{})[m.id];
+  const isOff = val===0;
+  const locked = isPastOrToday(dateStr);
+  const size = big ? 34 : 20;
+  const fsz = big ? 15 : 10;
+  // Locked (past/today) cells: solid green/red — these drive money.
+  // Future cells: dimmer, dashed-border "plan only" look — never affect balance.
+  const bg = isOff
+    ? (locked ? 'rgba(224,98,95,0.38)' : 'rgba(224,98,95,0.14)')
+    : (locked ? 'rgba(62,203,136,0.26)' : 'rgba(62,203,136,0.10)');
+  const fg = isOff
+    ? (locked ? '#ffb3b0' : '#e08d8a')
+    : (locked ? '#8de8bb' : '#7fbf9e');
+  const border = locked ? 'none' : '1px dashed rgba(255,255,255,0.22)';
+  return `<div ${canEdit?`data-grid-cell="${m.id}|${dateStr}" style="cursor:pointer;"`:''} style="width:${size}px;height:${size}px;margin:0 auto;border-radius:${big?10:6}px;display:flex;align-items:center;justify-content:center;font-size:${fsz}px;font-weight:700;background:${bg};color:${fg};border:${border};">${isOff?'✕':'✓'}</div>`;
+}
+function renderMealGrid(){
+  const ym = monthStr();
+  const days = daysInMonth(ym);
+  const u = state.currentUser;
+  const canEdit = hasPerm('mealToggle');
+  let theadCells = '';
+  for(let d=1; d<=days; d++){
+    const dateStr = ym+'-'+String(d).padStart(2,'0');
+    const locked = isPastOrToday(dateStr);
+    theadCells += `<th style="min-width:24px; font-size:9px; color:${locked?'var(--text-1)':'var(--text-3)'}; font-weight:${locked?700:500}; padding:4px 1px;">${d}</th>`;
+  }
+  let rows = '';
+  state.members.forEach(m=>{
+    let cells = '';
+    for(let d=1; d<=days; d++){
+      const dateStr = ym+'-'+String(d).padStart(2,'0');
+      cells += `<td style="text-align:center; padding:3px 1px;">${mealGridCell(m, dateStr, canEdit, false)}</td>`;
+    }
+    rows += `<tr ${m.id===u.id?'style="background:rgba(108,92,224,0.10);"':''}><td style="position:sticky; left:0; background:#0c0d14; padding:4px 8px; font-size:12px; font-weight:600; white-space:nowrap;">${m.name}</td>${cells}</tr>`;
+  });
+  return `
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Monthly Meal Chart</h3>
+        <button class="btn btn-sm btn-ghost" id="viewAllChartBtn">View All</button>
+      </div>
+      <div class="row" style="margin-bottom:8px; gap:14px;">
+        <span class="tiny">🟢 হয়ে গেছে (locked, টাকা কাটে)</span>
+        <span class="tiny">⬜ ভবিষ্যৎ (শুধু প্ল্যান)</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;">
+          <thead><tr><th style="position:sticky; left:0; background:#0c0d14;"></th>${theadCells}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+function renderMealGridFullscreen(){
+  const ym = monthStr();
+  const days = daysInMonth(ym);
+  const u = state.currentUser;
+  const canEdit = hasPerm('mealToggle');
+  let rows = '';
+  state.members.forEach(m=>{
+    let dayCells = '';
+    for(let d=1; d<=days; d++){
+      const dateStr = ym+'-'+String(d).padStart(2,'0');
+      const locked = isPastOrToday(dateStr);
+      dayCells += `<div class="col" style="align-items:center; gap:4px; min-width:38px;">
+        <span class="tiny" style="color:${locked?'var(--text-1)':'var(--text-3)'};">${d}</span>
+        ${mealGridCell(m, dateStr, canEdit, true)}
+      </div>`;
+    }
+    rows += `<div style="margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--glass-border);">
+      <p style="font-weight:700; font-size:14px; margin-bottom:10px;">${m.name}</p>
+      <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;">${dayCells}</div>
+    </div>`;
+  });
+  return `
+    <div style="position:fixed; inset:0; z-index:60; background:rgba(3,4,10,0.92); backdrop-filter:blur(20px); overflow-y:auto; animation:fadeIn 0.7s var(--ease-apple);">
+      <div style="max-width:640px; margin:0 auto; padding:20px 16px 60px;">
+        <div class="row" style="margin-bottom:16px; position:sticky; top:0; background:rgba(3,4,10,0.92); padding:10px 0; z-index:2;">
+          <h2>Monthly Meal Chart</h2>
+          <button class="icon-btn" id="closeChartFullscreen">✕</button>
+        </div>
+        <div class="row" style="margin-bottom:16px; gap:14px;">
+          <span class="tiny">🟢 locked, টাকা কাটে</span>
+          <span class="tiny">⬜ ভবিষ্যৎ, শুধু প্ল্যান</span>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
+}
+
+function bindMeals(){
+  const u = state.currentUser;
+  const canEdit = hasPerm('mealToggle');
+  // Cooking cycle toggle: 2<->3 only. Self-editable by the member themselves, or admin/manager for anyone.
+  document.querySelectorAll('[data-cycle-toggle]').forEach(el=>{
+    el.onclick = async ()=>{
+      const mid = el.dataset.cycleToggle;
+      if(!(canEdit || mid===u.id)) return;
+      const cur = getMealCycle(mid);
+      const next = cur===2 ? 3 : 2;
+      await setMealCycle(mid, next);
+      el.className = 'meal-pill meal-'+next+' fade-cycle';
+      el.textContent = next;
+      render();
+    };
+  });
+  const gb = document.getElementById('addGuestMealBtn');
+  if(gb) gb.onclick = ()=>{ state.modal={type:'guestMeal'}; render(); };
+  const vab = document.getElementById('viewAllChartBtn');
+  if(vab) vab.onclick = ()=>{ state.chartFullscreen = true; render(); };
+  const closeFs = document.getElementById('closeChartFullscreen');
+  if(closeFs) closeFs.onclick = ()=>{ state.chartFullscreen = false; render(); };
+  if(canEdit){
+    document.querySelectorAll('[data-grid-cell]').forEach(el=>{
+      el.onclick = async ()=>{
+        const [mid, dateStr] = el.dataset.gridCell.split('|');
+        if(!state.meals[dateStr]) state.meals[dateStr]={};
+        const cur = state.meals[dateStr][mid];
+        const nextOff = !(cur===0);
+        state.meals[dateStr][mid] = nextOff ? 0 : 1;
+        await sSet('mess:meals', state.meals);
+        render();
+      };
+    });
+  }
+}
+
+/* ============================================================
+   BAZAR TAB
+============================================================ */
+function renderBazar(){
+  const u = state.currentUser;
+  const canAddBazar = hasPerm('bazarEntry');
+  const canAssignDuty = hasPerm('assignDuty');
+  const ym = monthStr();
+  const monthEntries = state.bazar.filter(b=>b.date.startsWith(ym)).slice().reverse();
+  const total = monthBazarTotal(ym);
+
+  return `
+    <div class="glass card row">
+      <div class="col">
+        <p class="muted">This Month's Bazar</p>
+        <h1 style="margin-top:4px;">৳${total.toFixed(0)}</h1>
+      </div>
+      <div class="col" style="align-items:flex-end;">
+        <p class="muted">Meal Rate ${state.mealRateOverride!=null ? '(fixed)' : ''}</p>
+        <h2 style="margin-top:4px;">৳${mealRate(ym).toFixed(2)}</h2>
+      </div>
+    </div>
+    ${canAddBazar ? `<button class="btn btn-primary btn-full" id="addBazarBtn" style="margin-bottom:14px;">+ Add Bazar Expense</button>` : ''}
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Expense Log</h3>
+      ${monthEntries.length ? monthEntries.map(b=>{
+        const doneNames = (b.doneBy||[]).map(id=>memberById(id)?.name).filter(Boolean).join(', ');
+        return `
+        <div class="list-row">
+          <div class="col" style="gap:2px;">
+            <p style="font-weight:600; font-size:14px;">${b.item}</p>
+            <p class="tiny">${fmtDate(b.date)}${doneNames?' · by '+doneNames:''}${b.note?' · '+b.note:''}</p>
+          </div>
+          <p style="font-weight:800;">৳${Number(b.amount).toFixed(0)}</p>
+        </div>
+      `; }).join('') : `<div class="empty"><div class="ic">${ICONS.empty}</div><p>No bazar entries yet this month</p></div>`}
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Bazar Duty Roster — ${new Date(ym+'-01').toLocaleDateString('en-US',{month:'long', year:'numeric'})}</h3>
+      </div>
+      <p class="tiny" style="margin-bottom:10px;">2 members assigned per day. ${canAssignDuty ? 'Tap a date to assign or mark done.' : 'Your assigned days are highlighted.'}</p>
+      <div style="max-height:340px; overflow-y:auto;">
+        ${Array.from({length:daysInMonth(ym)}, (_,i)=>{
+          const dnum = i+1;
+          const dateStr = ym+'-'+String(dnum).padStart(2,'0');
+          const duty = state.bazarRoster[dateStr] || {};
+          const aName = duty.a ? memberById(duty.a)?.name : null;
+          const bName = duty.b ? memberById(duty.b)?.name : null;
+          const isMine = duty.a===u.id || duty.b===u.id;
+          return `
+          <div class="list-row" ${canAssignDuty?`data-duty-date="${dateStr}" style="cursor:pointer;"`:''} ${isMine?'style="background:rgba(108,92,224,0.12); border-radius:12px;"':''}>
+            <div class="col" style="gap:2px;">
+              <p style="font-weight:700; font-size:13px;">${fmtDate(dateStr)}</p>
+              <p class="tiny">${aName||bName ? [aName,bName].filter(Boolean).join(' & ') : 'Not assigned'}</p>
+            </div>
+            ${duty.done ? `<span class="chip paid">Done</span>` : (aName||bName ? `<span class="chip">Pending</span>` : '')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function bindBazar(){
+  const u = state.currentUser;
+  const canAddBazar = hasPerm('bazarEntry');
+  const canAssignDuty = hasPerm('assignDuty');
+  if(canAddBazar){
+    const b = document.getElementById('addBazarBtn');
+    if(b) b.onclick = ()=>{ state.modal={type:'bazar'}; render(); };
+  }
+  if(canAssignDuty){
+    document.querySelectorAll('[data-duty-date]').forEach(el=>{
+      el.onclick = ()=>{ state.modal = {type:'bazarDuty', date: el.dataset.dutyDate}; render(); };
+    });
+  }
+}
+
+/* ============================================================
+   BILLS TAB
+============================================================ */
+function renderBills(){
+  const u = state.currentUser;
+  const isAdmin = u.role==='admin';
+  const isManager = u.role==='manager' || isAdmin;
+  const canEditAmount = isAdmin || hasPerm('billEdit');
+  const ym = monthStr();
+  const bp = state.billPayments[ym] || {};
+
+  return `
+    <div class="glass card">
+      <div class="row" style="margin-bottom:12px;">
+        <h3>Monthly Bills</h3>
+        ${isAdmin ? `<button class="icon-btn" id="addBillTypeBtn" style="width:32px;height:32px;">${ICONS.plus}</button>` : ''}
+      </div>
+      ${state.billTypes.map(bt=>{
+        const perHead = (Number(state.bills[bt.id])||0) / (state.members.length||1);
+        return `
+        <div class="list-row">
+          <p style="font-weight:600; font-size:14px;">${bt.label}</p>
+          <div class="row" style="gap:8px;">
+            ${canEditAmount ? `<input data-bill-amount="${bt.id}" value="${state.bills[bt.id]||0}" style="width:80px; padding:8px 10px; font-size:13px; text-align:right;" inputmode="numeric">` : ''}
+            <p style="font-weight:800;">৳${perHead.toFixed(0)}<span class="tiny">/head</span></p>
+            ${isAdmin ? `<button class="icon-btn" style="width:28px;height:28px;" data-del-billtype="${bt.id}">${ICONS.minus}</button>` : ''}
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+
+    <div class="glass card">
+      <h3 style="margin-bottom:12px;">Payment Status — ${ym}</h3>
+      ${state.members.map(m=>{
+        const paid = bp[m.id] || {};
+        return `
+        <div style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
+          <p style="font-weight:700; font-size:14px; margin-bottom:8px;">${m.name}</p>
+          <div class="row" style="flex-wrap:wrap; gap:8px; justify-content:flex-start;">
+            ${state.billTypes.map(bt=>`
+              <span class="chip ${paid[bt.id]?'paid':'unpaid'}" ${isManager?`data-toggle-paid="${m.id}|${bt.id}" style="cursor:pointer;"`:''}>${bt.label} ${paid[bt.id]?'· paid':'· unpaid'}</span>
+            `).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function bindBills(){
+  const u = state.currentUser;
+  if(u.role==='admin' || hasPerm('billEdit')){
+    document.querySelectorAll('[data-bill-amount]').forEach(inp=>{
+      inp.onchange = async ()=>{
+        const key = inp.dataset.billAmount;
+        state.bills[key] = Math.max(0, Number(inp.value)||0);
+        await sSet('mess:bills', state.bills);
+        toast('Bill amount updated');
+      };
+    });
+    document.querySelectorAll('[data-del-billtype]').forEach(b=>{
+      b.onclick = async ()=>{
+        const id = b.dataset.delBilltype;
+        state.billTypes = state.billTypes.filter(bt=>bt.id!==id);
+        delete state.bills[id];
+        await sSet('mess:billTypes', state.billTypes);
+        await sSet('mess:bills', state.bills);
+        toast('Utility removed'); render();
+      };
+    });
+    const addBtn = document.getElementById('addBillTypeBtn');
+    if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'addBillType'}; render(); };
+  }
+  if(u.role==='admin' || u.role==='manager'){
+    document.querySelectorAll('[data-toggle-paid]').forEach(el=>{
+      el.onclick = ()=>{
+        const [mid, bt] = el.dataset.togglePaid.split('|');
+        const ym = monthStr();
+        if(!state.billPayments[ym]) state.billPayments[ym]={};
+        if(!state.billPayments[ym][mid]) state.billPayments[ym][mid]={};
+        const nowPaid = !state.billPayments[ym][mid][bt];
+        state.billPayments[ym][mid][bt] = nowPaid;
+        const label = state.billTypes.find(x=>x.id===bt)?.label || bt;
+        el.className = 'chip ' + (nowPaid ? 'paid' : 'unpaid');
+        el.textContent = label + (nowPaid ? ' · paid' : ' · unpaid');
+        sSet('mess:billPayments', state.billPayments);
+      };
+    });
+  }
+}
+
+/* ============================================================
+   RULES TAB
+============================================================ */
+function renderRules(){
+  const isAdmin = state.currentUser.role==='admin';
+  return `
+    <div class="glass card">
+      <div class="row" style="margin-bottom:8px;">
+        <h3>Mess Rules</h3>
+        ${isAdmin ? `<button class="icon-btn" id="addRuleBtn">+</button>` : ''}
+      </div>
+      ${state.rules.map((r,i)=>`
+        <div class="rule-item">
+          <div class="rule-num">${i+1}</div>
+          <div class="col" style="flex:1; gap:6px;">
+            <p style="font-size:13.5px; line-height:1.6;">${r}</p>
+          </div>
+          ${isAdmin ? `<button class="icon-btn" style="width:30px;height:30px;font-size:12px;" data-del-rule="${i}">✕</button>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function bindRules(){
+  if(state.currentUser.role!=='admin') return;
+  const addBtn = document.getElementById('addRuleBtn');
+  if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'addRule'}; render(); };
+  document.querySelectorAll('[data-del-rule]').forEach(b=>{
+    b.onclick = async ()=>{
+      state.rules.splice(Number(b.dataset.delRule),1);
+      await sSet('mess:rules', state.rules);
+      toast('Rule removed'); render();
+    };
+  });
+}
+
+/* ============================================================
+   NOTICES TAB
+============================================================ */
+function renderNotices(){
+  const canPost = state.currentUser.role==='admin' || state.currentUser.role==='manager';
+  return `
+    ${canPost ? `<button class="btn btn-primary btn-full" id="addNoticeBtn" style="margin-bottom:14px;">+ Post Notice</button>` : ''}
+    <div class="glass card">
+      ${state.notices.length ? state.notices.slice().reverse().map(n=>`
+        <div class="list-row" style="align-items:flex-start;">
+          <div class="col" style="gap:4px;">
+            <p style="font-size:14px; line-height:1.5;">${n.text}</p>
+            <p class="tiny">${fmtDate(n.date)} · ${n.postedBy}</p>
+          </div>
+        </div>
+      `).join('') : `<div class="empty"><div class="ic">${ICONS.empty}</div><p>No notices posted yet</p></div>`}
+    </div>
+  `;
+}
+function bindNotices(){
+  const canPost = state.currentUser.role==='admin' || state.currentUser.role==='manager';
+  if(canPost){
+    const b = document.getElementById('addNoticeBtn');
+    if(b) b.onclick = ()=>{ state.modal={type:'notice'}; render(); };
+  }
+}
+
+/* ============================================================
+   ADMIN TAB
+============================================================ */
+function renderAdmin(){
+  return `
+    <button class="btn btn-primary btn-full" id="addMemberBtn" style="margin-bottom:14px;">+ Add Member</button>
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Members (${state.members.length})</h3>
+      ${(state.adminMembersExpanded ? state.members : state.members.slice(0,6)).map(m=>`
+        <div class="list-row">
+          <div class="row" style="gap:10px; cursor:pointer;" data-member-detail="${m.id}">
+            <div class="avatar">${initials(m.name)}</div>
+            <div class="col" style="gap:2px;">
+              <p style="font-weight:700; font-size:14px;">${m.name}</p>
+              <span class="role-badge role-${m.role}" style="font-size:9px;">${m.role}</span>
+            </div>
+          </div>
+          <div class="row" style="gap:6px;">
+            ${m.role!=='admin' ? `<button class="btn btn-sm ${m.role==='manager'?'':'btn-ghost'}" data-toggle-manager="${m.id}">${m.role==='manager'?'Manager ✓':'Make Manager'}</button>` : ''}
+            ${m.id!==state.currentUser.id ? `<button class="btn btn-sm btn-danger" data-remove-member="${m.id}">Remove</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+      ${state.members.length>6 ? `<button class="btn btn-ghost btn-full" id="toggleMembersExpand" style="margin-top:10px;">${state.adminMembersExpanded ? 'View Less' : `View All (${state.members.length})`}</button>` : ''}
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Dues (বকেয়া)</h3>
+        <button class="icon-btn" style="width:32px;height:32px;" id="addDueBtn">${ICONS.plus}</button>
+      </div>
+      ${state.dues.filter(d=>!d.settled).slice(-8).reverse().map(d=>{
+        const m = memberById(d.memberId);
+        return `<div class="list-row">
+          <div class="col" style="gap:2px;"><p style="font-size:13px; font-weight:600;">${m?m.name:'?'}</p><p class="tiny">${d.reason} · ${fmtDate(d.date)}</p></div>
+          <div class="row" style="gap:8px;"><p style="font-weight:800;">৳${Number(d.amount).toFixed(0)}</p><button class="icon-btn" style="width:26px;height:26px;" data-settle-due="${d.id}">${ICONS.check}</button></div>
+        </div>`;
+      }).join('') || `<p class="muted" style="text-align:center; padding:10px 0;">কোনো বকেয়া নেই</p>`}
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;"><h3>Manager Permissions & Roles</h3></div>
+      <div class="stack">
+        <button class="btn btn-ghost btn-full" id="openPermissionsBtn">Configure Manager Permissions</button>
+        <button class="btn btn-ghost btn-full" id="openAddRoleBtn">+ Create Custom Role</button>
+        ${state.customRoles.length ? `<div class="row" style="flex-wrap:wrap; gap:6px;">${state.customRoles.map(r=>`<span class="chip">${r.label}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;"><h3>Mess Group Link</h3></div>
+      <p class="muted" style="margin-bottom:10px; word-break:break-all;">${state.groupLink || 'কোনো লিংক সেট করা হয়নি'}</p>
+      <button class="btn btn-ghost btn-full" id="editGroupLinkBtn">Edit Group Link</button>
+    </div>
+
+    <div class="glass card">
+      <div class="row" style="margin-bottom:8px;">
+        <h3>Meal Rate</h3>
+        <span class="chip">${state.mealRateOverride!=null ? 'Manual' : 'Auto'}</span>
+      </div>
+      <p class="muted" style="margin-bottom:14px;">${state.mealRateOverride!=null ? 'Fixed by you — ignores bazar totals.' : 'Auto-calculated from this month\'s bazar total divided by total meals eaten.'} Currently ৳${mealRate().toFixed(2)} per meal.</p>
+      <div class="row" style="gap:8px; margin-bottom:${state.mealRateOverride!=null?'10px':'0'};">
+        <input id="mealRateInput" value="${(state.mealRateOverride ?? mealRate()).toFixed(2)}" inputmode="decimal" style="flex:1;">
+        <button class="btn btn-primary btn-sm" id="setMealRateBtn">Set Fixed Rate</button>
+      </div>
+      ${state.mealRateOverride!=null ? `<button class="btn btn-ghost btn-full" id="autoMealRateBtn">Switch Back to Auto-Calculate</button>` : ''}
+    </div>
+
+    <div class="glass card">
+      <h3 style="margin-bottom:10px;">Monthly Settlement — ${monthStr()}</h3>
+      ${state.members.map(m=>{
+        const bal = memberBalance(m.id);
+        return `<div class="list-row">
+          <p style="font-size:13px; font-weight:600;">${m.name}</p>
+          <p style="font-weight:800;" style="color:${bal>=0?'var(--ok)':'var(--danger)'};">${bal>=0?'+':''}৳${bal.toFixed(0)}</p>
+        </div>`;
+      }).join('')}
+      <button class="btn btn-ghost btn-full" id="openSettlementSummaryBtn" style="margin-top:12px;">Full Settlement Summary</button>
+    </div>
+
+    ${state.lastAction ? `
+    <div class="glass card" style="border-color:rgba(214,154,78,0.4);">
+      <h3 style="margin-bottom:6px; color:var(--accent-d);">Undo Available</h3>
+      <p class="muted" style="margin-bottom:12px;">সর্বশেষ কাজ: ${state.lastAction.desc}</p>
+      <button class="btn btn-ghost btn-full" id="undoLastActionBtn" style="border-color:rgba(214,154,78,0.5);">Undo Last Action</button>
+    </div>` : ''}
+
+    <div class="glass card" style="border-color:rgba(214,154,78,0.4);">
+      <h3 style="margin-bottom:6px; color:var(--accent-d);">Start New Month</h3>
+      <p class="muted" style="margin-bottom:14px;">Clears this month's meals, bazar, guest meals, deposits, bills and payments so you can start fresh. Members and utility categories stay exactly as they are.</p>
+      <button class="btn btn-ghost btn-full" id="startNewMonthBtn" style="border-color:rgba(214,154,78,0.5);">Start New Month</button>
+    </div>
+
+    <div class="glass card" style="border-color:rgba(224,98,95,0.4);">
+      <h3 style="margin-bottom:6px; color:var(--danger);">Danger Zone</h3>
+      <p class="muted" style="margin-bottom:14px;">Deletes every member — including you — and all meals, bazar, bills, and history. This cannot be undone.</p>
+      <button class="btn btn-danger btn-full" id="resetAllBtn">Delete All Data</button>
+    </div>
+  `;
+}
+
+function bindAdmin(){
+  const tme = document.getElementById('toggleMembersExpand');
+  if(tme) tme.onclick = ()=>{ state.adminMembersExpanded = !state.adminMembersExpanded; render(); };
+  document.querySelectorAll('[data-member-detail]').forEach(el=>{
+    el.onclick = ()=>{ state.modal={type:'memberDetail', memberId: el.dataset.memberDetail}; render(); };
+  });
+  document.getElementById('addMemberBtn').onclick = ()=>{ state.modal={type:'addMember'}; render(); };
+  document.getElementById('setMealRateBtn').onclick = async ()=>{
+    const v = positiveNumber(document.getElementById('mealRateInput').value);
+    if(!v){ toast('Enter a valid positive rate'); return; }
+    state.mealRateOverride = v;
+    await sSet('mess:mealRateOverride', v);
+    toast('Meal rate fixed at ৳'+v); render();
+  };
+  const autoBtn = document.getElementById('autoMealRateBtn');
+  if(autoBtn) autoBtn.onclick = async ()=>{
+    state.mealRateOverride = null;
+    await sSet('mess:mealRateOverride', null);
+    toast('Meal rate back to auto-calculate'); render();
+  };
+  document.querySelectorAll('[data-toggle-manager]').forEach(b=>{
+    b.onclick = async ()=>{
+      const m = memberById(b.dataset.toggleManager);
+      m.role = m.role==='manager' ? 'member' : 'manager';
+      await sSet('mess:members', state.members);
+      toast(m.name+' is now '+m.role); render();
+    };
+  });
+  document.querySelectorAll('[data-remove-member]').forEach(b=>{
+    b.onclick = ()=>{
+      const m = memberById(b.dataset.removeMember);
+      state.modal = {type:'confirmRemove', memberId:m.id, memberName:m.name};
+      render();
+    };
+  });
+  document.getElementById('resetAllBtn').onclick = ()=>{
+    state.modal = {type:'confirmResetAll'};
+    render();
+  };
+  const nmb = document.getElementById('startNewMonthBtn');
+  if(nmb) nmb.onclick = ()=>{
+    state.modal = {type:'confirmNewMonth'};
+    render();
+  };
+  const adb = document.getElementById('addDueBtn');
+  if(adb) adb.onclick = ()=>{ state.modal={type:'addDue'}; render(); };
+  document.querySelectorAll('[data-settle-due]').forEach(b=>{
+    b.onclick = async ()=>{
+      const d = state.dues.find(x=>x.id===b.dataset.settleDue);
+      if(d){ d.settled = true; await sSet('mess:dues', state.dues); toast('Due settled'); render(); }
+    };
+  });
+  const opb = document.getElementById('openPermissionsBtn');
+  if(opb) opb.onclick = ()=>{ state.modal={type:'permissions'}; render(); };
+  const oarb = document.getElementById('openAddRoleBtn');
+  if(oarb) oarb.onclick = ()=>{ state.modal={type:'addCustomRole'}; render(); };
+  const eglb = document.getElementById('editGroupLinkBtn');
+  if(eglb) eglb.onclick = ()=>{ state.modal={type:'editGroupLink'}; render(); };
+  const ossb = document.getElementById('openSettlementSummaryBtn');
+  if(ossb) ossb.onclick = ()=>{ state.modal={type:'settlementSummary'}; render(); };
+  const ulab = document.getElementById('undoLastActionBtn');
+  if(ulab) ulab.onclick = ()=>{ undoLastAction(); };
+}
+
+/* ============================================================
+   MODALS
+============================================================ */
+function renderModal(){
+  const m = state.modal;
+  let body = '';
+  if(m.type==='addMember') body = modalAddMember();
+  else if(m.type==='deposit') body = modalDeposit();
+  else if(m.type==='bazar') body = modalBazar();
+  else if(m.type==='guestMeal') body = modalGuestMeal();
+  else if(m.type==='addRule') body = modalAddRule();
+  else if(m.type==='notice') body = modalNotice();
+  else if(m.type==='mealOffRequest') body = modalMealOffRequest();
+  else if(m.type==='addBillType') body = modalAddBillType();
+  else if(m.type==='confirmRemove') body = modalConfirmRemove(m);
+  else if(m.type==='confirmResetAll') body = modalConfirmResetAll();
+  else if(m.type==='confirmNewMonth') body = modalConfirmNewMonth();
+  else if(m.type==='depositDetail') body = modalDepositDetail(m);
+  else if(m.type==='confirmRemoveDeposit') body = modalConfirmRemoveDeposit(m);
+  else if(m.type==='bazarDuty') body = modalBazarDuty(m);
+  else if(m.type==='memberDetail') body = modalMemberDetail(m);
+  else if(m.type==='addDue') body = modalAddDue();
+  else if(m.type==='permissions') body = modalPermissions();
+  else if(m.type==='addCustomRole') body = modalAddCustomRole();
+  else if(m.type==='editGroupLink') body = modalEditGroupLink();
+  else if(m.type==='settlementSummary') body = modalSettlementSummary();
+
+  return `<div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      ${body}
+    </div>
+  </div>`;
+}
+
+function modalAddMember(){
+  return `
+    <h2 style="margin-bottom:18px;">Add Member</h2>
+    <div class="stack">
+      <div><label>Name</label><input id="mName" placeholder="Full name"></div>
+      <div><label>4-digit PIN</label><input id="mPin" placeholder="e.g. 1234" maxlength="4" inputmode="numeric"></div>
+      <button class="btn btn-primary btn-full" id="submitAddMember">Add Member</button>
+    </div>`;
+}
+function modalDeposit(){
+  return `
+    <h2 style="margin-bottom:18px;">Log Deposit</h2>
+    <div class="stack">
+      <div><label>Member</label><select id="dMember">${state.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div>
+      <div><label>Amount (৳)</label><input id="dAmount" inputmode="numeric" placeholder="e.g. 1000"></div>
+      <div><label>Note (optional)</label><input id="dNote" placeholder="e.g. August advance"></div>
+      <button class="btn btn-primary btn-full" id="submitDeposit">Save Deposit</button>
+    </div>`;
+}
+function modalBazar(){
+  const today = todayStr();
+  const duty = state.bazarRoster[today] || {};
+  return `
+    <h2 style="margin-bottom:18px;">Add Bazar Expense</h2>
+    <div class="stack">
+      <div><label>Date</label><input id="bDate" type="date" value="${today}"></div>
+      <div><label>Item</label><input id="bItem" placeholder="e.g. Rice, vegetables, fish"></div>
+      <div><label>Amount (৳)</label><input id="bAmount" inputmode="numeric" placeholder="e.g. 850"></div>
+      <div>
+        <label>Who went to bazar</label>
+        <div class="stack" style="gap:6px;">
+          ${state.members.map(m=>`
+            <label class="row" style="cursor:pointer;"><span style="font-size:13px; text-transform:none; color:var(--text-1); font-weight:500;">${m.name}</span><input type="checkbox" class="bDoneBy" value="${m.id}" ${(duty.a===m.id||duty.b===m.id)?'checked':''} style="width:20px; height:20px;"></label>
+          `).join('')}
+        </div>
+      </div>
+      <div><label>Note (optional)</label><input id="bNote" placeholder="optional"></div>
+      <button class="btn btn-primary btn-full" id="submitBazar">Save Expense</button>
+    </div>`;
+}
+function modalGuestMeal(){
+  return `
+    <h2 style="margin-bottom:18px;">Add Guest Meal</h2>
+    <div class="stack">
+      <div><label>Billed to Member</label><select id="gMember">${state.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div>
+      <div><label>Number of Guest Meals</label><input id="gCount" inputmode="numeric" placeholder="e.g. 1"></div>
+      <div><label>Note (optional)</label><input id="gNote" placeholder="e.g. friend visiting"></div>
+      <button class="btn btn-primary btn-full" id="submitGuestMeal">Add Guest Meal</button>
+    </div>`;
+}
+function modalAddRule(){
+  return `
+    <h2 style="margin-bottom:18px;">Add Rule</h2>
+    <div class="stack">
+      <div><label>Rule text</label><textarea id="ruleText" rows="4" placeholder="Write the rule..."></textarea></div>
+      <button class="btn btn-primary btn-full" id="submitRule">Add Rule</button>
+    </div>`;
+}
+function modalNotice(){
+  return `
+    <h2 style="margin-bottom:18px;">Post Notice</h2>
+    <div class="stack">
+      <div><label>Notice</label><textarea id="noticeText" rows="3" placeholder="Write announcement..."></textarea></div>
+      <button class="btn btn-primary btn-full" id="submitNotice">Post</button>
+    </div>`;
+}
+function modalMealOffRequest(){
+  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  return `
+    <h2 style="margin-bottom:6px;">Meal Off / On Request</h2>
+    <p class="tiny" style="margin-bottom:18px;">পরের দিনের মিল অফ করতে চাইলে রাত ১০টার মধ্যে পাঠাতে হবে। একদিন বা একাধিক দিনের রেঞ্জ দেওয়া যাবে।</p>
+    <div class="stack">
+      <div><label>From date</label><input id="reqDate" type="date" value="${tomorrow}"></div>
+      <div><label>To date (same as From for a single day)</label><input id="reqEndDate" type="date" value="${tomorrow}"></div>
+      <div><label>Action</label><select id="reqAction"><option value="off">Turn meal OFF</option><option value="on">Turn meal ON</option></select></div>
+      <button class="btn btn-primary btn-full" id="submitMealOffReq">Send Request</button>
+    </div>`;
+}
+function modalAddBillType(){
+  return `
+    <h2 style="margin-bottom:18px;">Add Utility Bill</h2>
+    <div class="stack">
+      <div><label>Name</label><input id="btLabel" placeholder="e.g. Gas, Water, Maintenance"></div>
+      <div><label>Starting Amount (৳, optional)</label><input id="btAmount" inputmode="numeric" placeholder="0"></div>
+      <button class="btn btn-primary btn-full" id="submitBillType">Add Utility</button>
+    </div>`;
+}
+function modalDepositDetail(modal){
+  const d = state.deposits.find(x=>x.id===modal.depositId);
+  const u = state.currentUser;
+  if(!d) return `<p class="muted">Deposit not found.</p>`;
+  const mem = memberById(d.memberId);
+  const canRemove = (u.role==='admin'||u.role==='manager') && !d.removed;
+  return `
+    <h2 style="margin-bottom:6px;">Deposit Details</h2>
+    ${d.removed ? `<span class="chip" style="background:rgba(224,98,95,0.25); margin-bottom:14px; display:inline-block;">Removed</span>` : ''}
+    <div class="stack" style="margin-bottom:18px;">
+      <div class="row"><p class="muted">Member</p><p style="font-weight:700;">${mem?mem.name:'?'}</p></div>
+      <div class="row"><p class="muted">Amount</p><p style="font-weight:800;">৳${Number(d.amount).toFixed(0)}</p></div>
+      <div class="row"><p class="muted">Date & Time</p><p style="font-weight:600;">${fmtDate(d.date)}${d.time?', '+d.time:''}</p></div>
+      <div class="row"><p class="muted">Logged by</p><p style="font-weight:600;">${d.addedBy||'—'}</p></div>
+      ${d.note ? `<div class="row"><p class="muted">Note</p><p style="font-weight:600;">${d.note}</p></div>` : ''}
+      ${d.removed && u.role==='admin' ? `
+      <div class="row"><p class="muted">Removed by</p><p style="font-weight:600;">${d.removedBy||'—'}</p></div>
+      <div class="row"><p class="muted">Removed at</p><p style="font-weight:600;">${d.removedAt||'—'}</p></div>` : ''}
+    </div>
+    <div class="stack">
+      ${canRemove ? `<button class="btn btn-danger btn-full" id="removeDepositBtn">Remove This Deposit</button>` : ''}
+      <button class="btn btn-ghost btn-full" id="closeDepositDetailBtn">Close</button>
+    </div>`;
+}
+function modalConfirmRemoveDeposit(modal){
+  const d = state.deposits.find(x=>x.id===modal.depositId);
+  const mem = d ? memberById(d.memberId) : null;
+  return `
+    <h2 style="margin-bottom:10px;">Remove this deposit?</h2>
+    <p class="muted" style="margin-bottom:22px;">৳${d?Number(d.amount).toFixed(0):0} logged for ${mem?mem.name:'?'} will be removed from all balances. It stays on record (marked removed) with your name and the time — this can't be hidden once done.</p>
+    <div class="stack">
+      <button class="btn btn-danger btn-full" id="confirmRemoveDepositBtn">Remove Deposit</button>
+      <button class="btn btn-ghost btn-full" id="cancelRemoveDepositBtn">Cancel</button>
+    </div>`;
+}
+function modalBazarDuty(modal){
+  const date = modal.date;
+  const duty = state.bazarRoster[date] || {};
+  return `
+    <h2 style="margin-bottom:6px;">Assign Bazar Duty</h2>
+    <p class="muted" style="margin-bottom:18px;">${fmtDate(date)}</p>
+    <div class="stack">
+      <div><label>Member 1</label><select id="dutyA"><option value="">— none —</option>${state.members.map(m=>`<option value="${m.id}" ${duty.a===m.id?'selected':''}>${m.name}</option>`).join('')}</select></div>
+      <div><label>Member 2</label><select id="dutyB"><option value="">— none —</option>${state.members.map(m=>`<option value="${m.id}" ${duty.b===m.id?'selected':''}>${m.name}</option>`).join('')}</select></div>
+      <label class="row" style="cursor:pointer;"><span style="font-size:13px; text-transform:none; color:var(--text-1); font-weight:600;">Mark today's duty as done</span><input type="checkbox" id="dutyDone" ${duty.done?'checked':''} style="width:20px; height:20px;"></label>
+      <button class="btn btn-primary btn-full" id="submitDuty">Save</button>
+      <button class="btn btn-ghost btn-full" id="cancelDutyBtn">Cancel</button>
+    </div>`;
+}
+function bindBazarDutyModal(){
+  const sd = document.getElementById('submitDuty');
+  if(sd) sd.onclick = async ()=>{
+    const date = state.modal.date;
+    const a = document.getElementById('dutyA').value || null;
+    const b = document.getElementById('dutyB').value || null;
+    const done = document.getElementById('dutyDone').checked;
+    state.bazarRoster[date] = {a, b, done};
+    await sSet('mess:bazarRoster', state.bazarRoster);
+    state.modal=null; toast('Roster updated'); render();
+  };
+  const cd = document.getElementById('cancelDutyBtn');
+  if(cd) cd.onclick = ()=>{ state.modal=null; render(); };
+}
+
+function memberDues(memberId){ return state.dues.filter(d=>d.memberId===memberId && !d.settled); }
+function memberDueTotal(memberId){ return memberDues(memberId).reduce((s,d)=>s+Number(d.amount),0); }
+
+function modalMemberDetail(modal){
+  const m = memberById(modal.memberId);
+  if(!m) return `<p>Not found</p>`;
+  const isSelf = m.id===state.currentUser.id;
+  const isAdmin = state.currentUser.role==='admin';
+  const canSeeDue = isSelf || isAdmin || state.currentUser.role==='manager';
+  const dues = canSeeDue ? memberDues(m.id) : [];
+  const dueTotal = canSeeDue ? memberDueTotal(m.id) : 0;
+  return `
+    <h2 style="margin-bottom:4px;">${m.name}</h2>
+    <span class="role-badge role-${m.role}" style="margin-bottom:18px; display:inline-block;">${m.role}</span>
+    <div class="stack">
+      <div><label>Phone</label>${isSelf ? `<input id="mdPhone" value="${m.phone||''}" placeholder="01XXXXXXXXX">` : `<p style="padding:10px 0;">${m.phone||'—'}</p>`}</div>
+      <div><label>Floor / Unit / Room</label>${isSelf ? `<input id="mdAddress" value="${m.address||''}" placeholder="e.g. 4th floor, Unit B, Room 302">` : `<p style="padding:10px 0;">${m.address||'—'}</p>`}</div>
+      <div><label>Facebook</label>${isSelf ? `<input id="mdFb" value="${m.fb||''}" placeholder="profile link">` : (m.fb?`<p style="padding:10px 0;">${m.fb}</p>`:'')}</div>
+      <div><label>Instagram</label>${isSelf ? `<input id="mdInsta" value="${m.insta||''}" placeholder="profile link">` : (m.insta?`<p style="padding:10px 0;">${m.insta}</p>`:'')}</div>
+      <div><label>WhatsApp</label>${isSelf ? `<input id="mdWhatsapp" value="${m.whatsapp||''}" placeholder="number or link">` : (m.whatsapp?`<p style="padding:10px 0;">${m.whatsapp}</p>`:'')}</div>
+      ${isSelf ? `<button class="btn btn-primary btn-full" id="saveMemberDetail">Save</button>` : ''}
+      ${canSeeDue ? `
+        <div style="margin-top:8px; padding-top:14px; border-top:1px solid var(--glass-border);">
+          <div class="row" style="margin-bottom:8px;"><h3>Due</h3><p style="font-weight:800; color:${dueTotal>0?'var(--danger)':'var(--ok)'};">৳${dueTotal.toFixed(0)}</p></div>
+          ${dues.length ? dues.map(d=>`<div class="list-row"><div class="col" style="gap:2px;"><p style="font-size:13px;">${d.reason}</p><p class="tiny">${fmtDate(d.date)}</p></div><p style="font-weight:700;">৳${Number(d.amount).toFixed(0)}</p></div>`).join('') : `<p class="muted" style="font-size:12px;">কোনো বকেয়া নেই</p>`}
+        </div>` : ''}
+      <button class="btn btn-ghost btn-full" id="closeMemberDetail">Close</button>
+    </div>`;
+}
+
+function modalAddDue(){
+  return `
+    <h2 style="margin-bottom:6px;">বকেয়া যোগ করুন</h2>
+    <p class="tiny" style="margin-bottom:16px;">একাধিক মেম্বার সিলেক্ট করা যাবে। "Same amount" অন থাকলে সবার জন্য একই টাকা, অফ করলে প্রত্যেকের জন্য আলাদা লেখা যাবে।</p>
+    <div class="stack">
+      <div><label>Members</label>
+        <div style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto;">
+          ${state.members.map(m=>`<label class="row" style="cursor:pointer;"><span style="font-size:13px; color:var(--text-1); font-weight:600;">${m.name}</span><input type="checkbox" class="dueMemberChk" value="${m.id}" style="width:18px;height:18px;"></label>`).join('')}
+        </div>
+      </div>
+      <label class="row" style="cursor:pointer;"><span style="font-size:13px; color:var(--text-1); font-weight:600;">Same amount for everyone selected</span><input type="checkbox" id="dueSameAmount" checked style="width:20px;height:20px;"></label>
+      <div id="dueAmountWrap"><label>Amount (৳, per person)</label><input id="dueAmount" inputmode="numeric" placeholder="0"></div>
+      <div id="duePerMemberWrap" style="display:none;"></div>
+      <div><label>Reason</label><select id="dueReason"><option value="মিলের টাকা বাকি">মিলের টাকা বাকি</option><option value="জরিমানা">জরিমানা</option><option value="বুয়ার টাকা বাকি">বুয়ার টাকা বাকি</option><option value="other">অন্যান্য (নিজে লিখুন)</option></select></div>
+      <div id="dueReasonOtherWrap" style="display:none;"><input id="dueReasonOther" placeholder="কারণ লিখুন"></div>
+      <button class="btn btn-primary btn-full" id="submitDue">Add Due</button>
+    </div>`;
+}
+
+function modalPermissions(){
+  const p = getPerms('manager');
+  const actions = [
+    ['mealToggle','মিল চার্ট টগল করা'],
+    ['bazarEntry','বাজার এন্ট্রি যোগ করা'],
+    ['billEdit','বিল এমাউন্ট এডিট করা'],
+    ['removeMember','মেম্বার রিমুভ করা'],
+    ['postNotice','নোটিশ পোস্ট করা'],
+    ['approveRequests','মিল-অফ রিকোয়েস্ট এপ্রুভ করা'],
+    ['assignDuty','বাজার ডিউটি অ্যাসাইন করা'],
+    ['dueEdit','বকেয়া যোগ/এডিট করা'],
+  ];
+  return `
+    <h2 style="margin-bottom:6px;">Manager Permissions</h2>
+    <p class="tiny" style="margin-bottom:16px;">ম্যানেজার কী কী করতে পারবে তা এখান থেকে ঠিক করুন।</p>
+    <div class="stack">
+      ${actions.map(([key,label])=>`
+        <label class="row" style="cursor:pointer;"><span style="font-size:13px; color:var(--text-1); font-weight:600;">${label}</span><input type="checkbox" class="permChk" data-perm="${key}" ${p[key]?'checked':''} style="width:20px;height:20px;"></label>
+      `).join('')}
+      <button class="btn btn-primary btn-full" id="savePermissions">Save</button>
+    </div>`;
+}
+
+function modalAddCustomRole(){
+  return `
+    <h2 style="margin-bottom:18px;">নতুন পদবী তৈরি করুন</h2>
+    <div class="stack">
+      <div><label>Role name</label><input id="crLabel" placeholder="যেমন: Treasurer, Cook Supervisor"></div>
+      <button class="btn btn-primary btn-full" id="submitCustomRole">Create Role</button>
+    </div>`;
+}
+
+function modalEditGroupLink(){
+  return `
+    <h2 style="margin-bottom:18px;">মেস গ্রুপ লিংক</h2>
+    <div class="stack">
+      <div><label>Messenger / WhatsApp group link</label><input id="glInput" value="${state.groupLink||''}" placeholder="https://..."></div>
+      <button class="btn btn-primary btn-full" id="submitGroupLink">Save</button>
+    </div>`;
+}
+
+function modalSettlementSummary(){
+  const ym = monthStr();
+  const rate = mealRate(ym);
+  let text = `Mess Settlement — ${ym}\nMeal rate: ৳${rate.toFixed(2)}\n\n`;
+  const rows = state.members.map(m=>{
+    const meals = monthMealsForMember(m.id, ym);
+    const cost = memberFoodCost(m.id, ym);
+    const dep = memberDepositTotal(m.id, ym);
+    const due = memberDueTotal(m.id);
+    const bal = dep - cost - due;
+    text += `${m.name}: ${meals} meals, ৳${cost.toFixed(0)} food cost, ৳${dep.toFixed(0)} deposited, ৳${due.toFixed(0)} due → balance ${bal>=0?'+':''}৳${bal.toFixed(0)}\n`;
+    return {m, meals, cost, dep, due, bal};
+  });
+  return `
+    <h2 style="margin-bottom:14px;">Settlement Summary — ${ym}</h2>
+    <div style="max-height:50vh; overflow-y:auto; margin-bottom:16px;">
+      ${rows.map(r=>`
+        <div style="padding:10px 0; border-bottom:1px solid var(--glass-border);">
+          <p style="font-weight:700; font-size:14px; margin-bottom:4px;">${r.m.name}</p>
+          <p class="tiny">${r.meals} meals · ৳${r.cost.toFixed(0)} cost · ৳${r.dep.toFixed(0)} deposited${r.due>0?` · ৳${r.due.toFixed(0)} due`:''}</p>
+          <p style="font-weight:800; color:${r.bal>=0?'var(--ok)':'var(--danger)'};">${r.bal>=0?'+':''}৳${r.bal.toFixed(0)}</p>
+        </div>
+      `).join('')}
+    </div>
+    <div class="stack">
+      <button class="btn btn-primary btn-full" id="copySettlementBtn">Copy as Text</button>
+      <button class="btn btn-ghost btn-full" id="closeSettlementBtn">Close</button>
+    </div>
+    <textarea id="settlementRawText" style="position:absolute; left:-9999px;">${text}</textarea>`;
+}
+
+function modalConfirmRemove(m){
+  return `
+    <h2 style="margin-bottom:10px;">Remove ${m.memberName}?</h2>
+    <p class="muted" style="margin-bottom:22px;">This deletes their login and can't be undone. Their past meal, deposit, and bazar history will stay in the records.</p>
+    <div class="stack">
+      <button class="btn btn-danger btn-full" id="confirmRemoveBtn">Remove Member</button>
+      <button class="btn btn-ghost btn-full" id="cancelRemoveBtn">Cancel</button>
+    </div>`;
+}
+function modalConfirmNewMonth(){
+  return `
+    <h2 style="margin-bottom:10px; color:var(--accent-d);">Start a new month?</h2>
+    <p class="muted" style="margin-bottom:22px;">This clears meals, bazar entries, guest meals, deposits, bill amounts and bill payments for a fresh start. Members, utility category names, rules and notices are kept. This cannot be undone.</p>
+    <div class="stack">
+      <label>Type <strong style="color:var(--text-1);">RESET</strong> to confirm</label>
+      <input id="newMonthConfirmText" placeholder="RESET" style="margin-bottom:4px;">
+      <button class="btn btn-primary btn-full" id="confirmNewMonthBtn">Start New Month</button>
+      <button class="btn btn-ghost btn-full" id="cancelNewMonthBtn">Cancel</button>
+    </div>`;
+}
+function modalConfirmResetAll(){
+  return `
+    <h2 style="margin-bottom:10px; color:var(--danger);">Delete everything?</h2>
+    <p class="muted" style="margin-bottom:22px;">This removes all members (including you as admin), every meal record, bazar log, bill, rule, notice, and deposit. The mess will go back to a blank first-time setup. This cannot be undone.</p>
+    <div class="stack">
+      <label>Type <strong style="color:var(--text-1);">DELETE</strong> to confirm</label>
+      <input id="resetConfirmText" placeholder="DELETE" style="margin-bottom:4px;">
+      <button class="btn btn-danger btn-full" id="confirmResetAllBtn">Delete Everything</button>
+      <button class="btn btn-ghost btn-full" id="cancelResetAllBtn">Cancel</button>
+    </div>`;
+}
+
+function bindModalEvents(){
+  document.getElementById('modalBackdrop').onclick = ()=>{ state.modal=null; render(); };
+
+  const sm = document.getElementById('submitAddMember');
+  if(sm) sm.onclick = async ()=>{
+    const name = esc(document.getElementById('mName').value.trim());
+    const pin = document.getElementById('mPin').value.trim();
+    if(!name || pin.length!==4){ toast('Enter name and 4-digit PIN'); return; }
+    state.members.push({id:uid(), name, pin, role:'member', joinedAt:todayStr()});
+    await sSet('mess:members', state.members);
+    state.modal=null; toast('Member added'); render();
+  };
+
+  const sd = document.getElementById('submitDeposit');
+  if(sd) sd.onclick = async ()=>{
+    const memberId = document.getElementById('dMember').value;
+    const amount = positiveNumber(document.getElementById('dAmount').value);
+    const note = esc(document.getElementById('dNote').value.trim());
+    if(!amount){ toast('Enter a positive amount'); return; }
+    const newDep = {id:uid(), memberId, amount, date:todayStr(), time:nowTimeStr(), addedBy:state.currentUser.name, addedById:state.currentUser.id, removed:false, note};
+    state.deposits.push(newDep);
+    state.lastAction = {type:'deposit', id:newDep.id, desc:`৳${amount} deposit for ${memberById(memberId)?.name||''}`};
+    await sSet('mess:deposits', state.deposits);
+    state.modal=null; toast('Deposit logged'); render();
+  };
+
+  const sb = document.getElementById('submitBazar');
+  if(sb) sb.onclick = async ()=>{
+    const date = document.getElementById('bDate').value || todayStr();
+    const item = esc(document.getElementById('bItem').value.trim());
+    const amount = positiveNumber(document.getElementById('bAmount').value);
+    const note = esc(document.getElementById('bNote').value.trim());
+    const doneBy = Array.from(document.querySelectorAll('.bDoneBy:checked')).map(c=>c.value);
+    if(!item || !amount){ toast('Enter item and a positive amount'); return; }
+    const newBazar = {id:uid(), date, item, amount, addedBy:state.currentUser.name, doneBy, note};
+    state.bazar.push(newBazar);
+    state.lastAction = {type:'bazar', id:newBazar.id, desc:`${item} — ৳${amount}`};
+    await sSet('mess:bazar', state.bazar);
+    // Auto-tick the duty roster for this date — whoever was assigned that day gets marked done.
+    if(state.bazarRoster[date] && (state.bazarRoster[date].a || state.bazarRoster[date].b)){
+      state.bazarRoster[date].done = true;
+      await sSet('mess:bazarRoster', state.bazarRoster);
+    }
+    state.modal=null; toast('Expense added'); render();
+  };
+
+  const sg = document.getElementById('submitGuestMeal');
+  if(sg) sg.onclick = async ()=>{
+    const memberId = document.getElementById('gMember').value;
+    let count = Number(document.getElementById('gCount').value)||1;
+    count = Math.min(Math.max(Math.round(count),1),5); // sane 1-5 range for a single guest-meal entry
+    const note = esc(document.getElementById('gNote').value.trim());
+    state.guestMeals.push({id:uid(), memberId, date:todayStr(), count, note});
+    await sSet('mess:guestMeals', state.guestMeals);
+    state.modal=null; toast('Guest meal added'); render();
+  };
+
+  const sr = document.getElementById('submitRule');
+  if(sr) sr.onclick = async ()=>{
+    const text = esc(document.getElementById('ruleText').value.trim());
+    if(!text){ toast('Write a rule first'); return; }
+    state.rules.push(text);
+    await sSet('mess:rules', state.rules);
+    state.modal=null; toast('Rule added'); render();
+  };
+
+  const sn = document.getElementById('submitNotice');
+  if(sn) sn.onclick = async ()=>{
+    const text = esc(document.getElementById('noticeText').value.trim());
+    if(!text){ toast('Write a notice first'); return; }
+    state.notices.push({id:uid(), date:todayStr(), text, postedBy:state.currentUser.name});
+    await sSet('mess:notices', state.notices);
+    state.modal=null; toast('Notice posted'); render();
+  };
+
+  const sq = document.getElementById('submitMealOffReq');
+  if(sq) sq.onclick = async ()=>{
+    const date = document.getElementById('reqDate').value || todayStr();
+    const endDate = document.getElementById('reqEndDate').value || date;
+    const action = document.getElementById('reqAction').value;
+    const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+    const now = new Date();
+    // Deadline: requests touching tomorrow's date must be sent before 10 PM tonight.
+    if(action==='off' && date===tomorrow && now.getHours()>=22){
+      toast('শুধু পরের দিনের মিল রাত ১০টার আগে অফ করা যাবে');
+      return;
+    }
+    if(endDate < date){ toast('To date, From date-এর আগে হতে পারবে না'); return; }
+    state.mealOffRequests.push({id:uid(), memberId:state.currentUser.id, date, endDate, action, status:'pending', requestedAt:new Date().toISOString()});
+    await sSet('mess:mealOffRequests', state.mealOffRequests);
+    state.modal=null; toast('Request sent to manager'); render();
+  };
+
+  const sbt = document.getElementById('submitBillType');
+  if(sbt) sbt.onclick = async ()=>{
+    const label = esc(document.getElementById('btLabel').value.trim());
+    const amount = Math.max(0, Number(document.getElementById('btAmount').value)||0);
+    if(!label){ toast('Enter a utility name'); return; }
+    const id = uid();
+    state.billTypes.push({id, label});
+    state.bills[id] = amount;
+    await sSet('mess:billTypes', state.billTypes);
+    await sSet('mess:bills', state.bills);
+    state.modal=null; toast('Utility added'); render();
+  };
+
+  const crb = document.getElementById('confirmRemoveBtn');
+  if(crb) crb.onclick = async ()=>{
+    const id = state.modal.memberId;
+    const name = state.modal.memberName;
+    state.members = state.members.filter(m=>m.id!==id);
+    await sSet('mess:members', state.members);
+    state.modal=null; toast(name+' removed'); render();
+  };
+  const canb = document.getElementById('cancelRemoveBtn');
+  if(canb) canb.onclick = ()=>{ state.modal=null; render(); };
+
+  const crab = document.getElementById('confirmResetAllBtn');
+  if(crab) crab.onclick = async ()=>{
+    const txt = document.getElementById('resetConfirmText').value.trim();
+    if(txt.toUpperCase()!=='DELETE'){ toast('Type DELETE to confirm'); return; }
+    await resetEverything();
+  };
+  const canrb = document.getElementById('cancelResetAllBtn');
+  if(canrb) canrb.onclick = ()=>{ state.modal=null; render(); };
+
+  const cnmb = document.getElementById('confirmNewMonthBtn');
+  if(cnmb) cnmb.onclick = async ()=>{
+    const txt = document.getElementById('newMonthConfirmText').value.trim();
+    if(txt.toUpperCase()!=='RESET'){ toast('Type RESET to confirm'); return; }
+    await startNewMonth();
+  };
+  const canmb = document.getElementById('cancelNewMonthBtn');
+  if(canmb) canmb.onclick = ()=>{ state.modal=null; render(); };
+
+  const cddb = document.getElementById('closeDepositDetailBtn');
+  if(cddb) cddb.onclick = ()=>{ state.modal=null; render(); };
+  const rdb = document.getElementById('removeDepositBtn');
+  if(rdb) rdb.onclick = ()=>{ state.modal = {type:'confirmRemoveDeposit', depositId: state.modal.depositId}; render(); };
+  const crdb = document.getElementById('confirmRemoveDepositBtn');
+  if(crdb) crdb.onclick = async ()=>{
+    const d = state.deposits.find(x=>x.id===state.modal.depositId);
+    if(d){
+      d.removed = true;
+      d.removedBy = state.currentUser.name;
+      d.removedAt = fmtDate(todayStr())+', '+nowTimeStr();
+      await sSet('mess:deposits', state.deposits);
+      toast('Deposit removed');
+    }
+    state.modal=null; render();
+  };
+  const cardb = document.getElementById('cancelRemoveDepositBtn');
+  if(cardb) cardb.onclick = ()=>{ state.modal=null; render(); };
+
+  bindBazarDutyModal();
+  bindMemberDetailModal();
+  bindDueModal();
+  bindPermissionsModal();
+  bindCustomRoleModal();
+  bindGroupLinkModal();
+  const copySettle = document.getElementById('copySettlementBtn');
+  if(copySettle) copySettle.onclick = async ()=>{
+    const txt = document.getElementById('settlementRawText').value;
+    try{
+      await navigator.clipboard.writeText(txt);
+      toast('Copied to clipboard');
+    }catch(e){
+      const ta = document.getElementById('settlementRawText');
+      ta.style.position='fixed'; ta.style.left='10px'; ta.style.top='10px'; ta.select();
+      document.execCommand('copy');
+      ta.style.position='absolute'; ta.style.left='-9999px';
+      toast('Copied');
+    }
+  };
+  const closeSettle = document.getElementById('closeSettlementBtn');
+  if(closeSettle) closeSettle.onclick = ()=>{ state.modal=null; render(); };
+}
+
+function bindMemberDetailModal(){
+  const save = document.getElementById('saveMemberDetail');
+  if(save) save.onclick = async ()=>{
+    const mid = state.modal.memberId;
+    const m = memberById(mid);
+    if(!m) return;
+    m.phone = esc(document.getElementById('mdPhone').value.trim());
+    m.address = esc(document.getElementById('mdAddress').value.trim());
+    m.fb = esc(document.getElementById('mdFb').value.trim());
+    m.insta = esc(document.getElementById('mdInsta').value.trim());
+    m.whatsapp = esc(document.getElementById('mdWhatsapp').value.trim());
+    await sSet('mess:members', state.members);
+    state.modal=null; toast('Profile updated'); render();
+  };
+  const close = document.getElementById('closeMemberDetail');
+  if(close) close.onclick = ()=>{ state.modal=null; render(); };
+}
+
+function bindDueModal(){
+  const sameChk = document.getElementById('dueSameAmount');
+  const perWrap = document.getElementById('duePerMemberWrap');
+  const amtWrap = document.getElementById('dueAmountWrap');
+  function refreshPerMemberInputs(){
+    const selected = Array.from(document.querySelectorAll('.dueMemberChk:checked')).map(c=>c.value);
+    if(!perWrap) return;
+    perWrap.innerHTML = selected.map(id=>{
+      const m = memberById(id);
+      return `<div style="margin-bottom:8px;"><label>${m?m.name:'?'}</label><input class="duePerAmt" data-mid="${id}" inputmode="numeric" placeholder="0"></div>`;
+    }).join('');
+  }
+  if(sameChk) sameChk.onchange = ()=>{
+    const same = sameChk.checked;
+    if(amtWrap) amtWrap.style.display = same ? '' : 'none';
+    if(perWrap) perWrap.style.display = same ? 'none' : '';
+    if(!same) refreshPerMemberInputs();
+  };
+  document.querySelectorAll('.dueMemberChk').forEach(c=>{
+    c.onchange = ()=>{ if(sameChk && !sameChk.checked) refreshPerMemberInputs(); };
+  });
+  const reasonSel = document.getElementById('dueReason');
+  const otherWrap = document.getElementById('dueReasonOtherWrap');
+  if(reasonSel) reasonSel.onchange = ()=>{ if(otherWrap) otherWrap.style.display = reasonSel.value==='other' ? '' : 'none'; };
+  const sub = document.getElementById('submitDue');
+  if(sub) sub.onclick = async ()=>{
+    const selected = Array.from(document.querySelectorAll('.dueMemberChk:checked')).map(c=>c.value);
+    if(selected.length===0){ toast('অন্তত একজন মেম্বার সিলেক্ট করুন'); return; }
+    const reasonSelVal = document.getElementById('dueReason').value;
+    const reason = esc(reasonSelVal==='other' ? (document.getElementById('dueReasonOther').value.trim()||'Other') : reasonSelVal);
+    const same = document.getElementById('dueSameAmount').checked;
+    const date = todayStr();
+    if(same){
+      const amount = positiveNumber(document.getElementById('dueAmount').value);
+      if(!amount){ toast('সঠিক পজিটিভ টাকার পরিমাণ লিখুন'); return; }
+      const newIds = [];
+      selected.forEach(mid=>{
+        const d = {id:uid(), memberId:mid, amount, reason, addedBy:state.currentUser.name, date, settled:false};
+        state.dues.push(d); newIds.push(d.id);
+      });
+      state.lastAction = {type:'due', ids:newIds, desc:`${reason} — ${selected.length} member(s)`};
+    } else {
+      let ok = true;
+      const newIds = [];
+      document.querySelectorAll('.duePerAmt').forEach(inp=>{
+        const amount = positiveNumber(inp.value);
+        if(!amount){ ok=false; return; }
+        const d = {id:uid(), memberId:inp.dataset.mid, amount, reason, addedBy:state.currentUser.name, date, settled:false};
+        state.dues.push(d); newIds.push(d.id);
+      });
+      if(!ok){ toast('সবার টাকার পরিমাণ লিখুন'); state.dues = state.dues.filter(d=>!newIds.includes(d.id)); return; }
+      state.lastAction = {type:'due', ids:newIds, desc:`${reason} — ${newIds.length} member(s)`};
+    }
+    await sSet('mess:dues', state.dues);
+    state.modal=null; toast('Due added'); render();
+  };
+}
+
+function bindPermissionsModal(){
+  const save = document.getElementById('savePermissions');
+  if(save) save.onclick = async ()=>{
+    const perms = {...getPerms('manager')};
+    document.querySelectorAll('.permChk').forEach(c=>{ perms[c.dataset.perm] = c.checked; });
+    state.permissions = {...state.permissions, manager: perms};
+    await sSet('mess:permissions', state.permissions);
+    state.modal=null; toast('Permissions saved'); render();
+  };
+}
+
+function bindCustomRoleModal(){
+  const sub = document.getElementById('submitCustomRole');
+  if(sub) sub.onclick = async ()=>{
+    const label = esc(document.getElementById('crLabel').value.trim());
+    if(!label){ toast('Enter a role name'); return; }
+    const id = 'role_'+uid();
+    state.customRoles.push({id, label});
+    state.permissions = {...state.permissions, [id]: {...DEFAULT_PERMISSIONS.manager}};
+    await sSet('mess:customRoles', state.customRoles);
+    await sSet('mess:permissions', state.permissions);
+    state.modal=null; toast('Role created'); render();
+  };
+}
+
+function bindGroupLinkModal(){
+  const sub = document.getElementById('submitGroupLink');
+  if(sub) sub.onclick = async ()=>{
+    const gl = document.getElementById('glInput').value.trim();
+    if(gl && !/^https?:\/\//i.test(gl)){ toast('লিংক http:// বা https:// দিয়ে শুরু হতে হবে'); return; }
+    state.groupLink = esc(gl);
+    await sSet('mess:groupLink', state.groupLink);
+    state.modal=null; toast('Group link saved'); render();
+  };
+}
+
+async function undoLastAction(){
+  const a = state.lastAction;
+  if(!a) return;
+  if(a.type==='deposit'){
+    state.deposits = state.deposits.filter(d=>d.id!==a.id);
+    await sSet('mess:deposits', state.deposits);
+  } else if(a.type==='bazar'){
+    state.bazar = state.bazar.filter(b=>b.id!==a.id);
+    await sSet('mess:bazar', state.bazar);
+  } else if(a.type==='due'){
+    state.dues = state.dues.filter(d=>!a.ids.includes(d.id));
+    await sSet('mess:dues', state.dues);
+  }
+  state.lastAction = null;
+  toast('Undone'); render();
+}
+
+async function startNewMonth(){
+  // Rebuild the bills object with the SAME categories, all amounts zeroed.
+  const zeroedBills = {};
+  state.billTypes.forEach(bt=>{ zeroedBills[bt.id] = 0; });
+
+  const financial = {
+    'mess:meals': {},
+    'mess:guestMeals': [],
+    'mess:bazar': [],
+    'mess:bazarRoster': {},
+    'mess:bills': zeroedBills,
+    'mess:billPayments': {},
+    'mess:deposits': [],
+    'mess:mealRateOverride': null,
+  };
+  await Promise.all(Object.entries(financial).map(([k,v])=>sSet(k,v)));
+  Object.assign(state, {
+    meals:{}, guestMeals:[], bazar:[], bazarRoster:{},
+    bills: zeroedBills, billPayments:{}, deposits:[], mealRateOverride:null,
+  });
+  state.modal = null;
+  toast('New month started — all clear!');
+  render();
+}
+
+async function resetEverything(){
+  const empty = {
+    'mess:members': [],
+    'mess:meals': {},
+    'mess:guestMeals': [],
+    'mess:bazar': [],
+    'mess:bazarRoster': {},
+    'mess:billTypes': DEFAULT_BILL_TYPES,
+    'mess:bills': {bua:0,wifi:0,electricity:0,cleaning:0},
+    'mess:billPayments': {},
+    'mess:rules': DEFAULT_RULES,
+    'mess:notices': [],
+    'mess:mealOffRequests': [],
+    'mess:deposits': [],
+    'mess:mealRateOverride': null,
+  };
+  await Promise.all(Object.entries(empty).map(([k,v])=>sSet(k,v)));
+  Object.assign(state, {
+    members:[], meals:{}, guestMeals:[], bazar:[], bazarRoster:{}, billTypes:DEFAULT_BILL_TYPES.slice(),
+    bills:{bua:0,wifi:0,electricity:0,cleaning:0}, billPayments:{}, rules:DEFAULT_RULES.slice(),
+    notices:[], mealOffRequests:[], deposits:[], mealRateOverride:null,
+    currentUser:null, screen:'setup', tab:'dashboard', loginStep:'select',
+    selectedMemberForLogin:null, pinBuffer:'', modal:null,
+  });
+  toast('All data deleted');
+  render();
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+loadAll();
+
+// Mobile browsers often restore a page from bfcache on reopen instead of
+// re-running startup logic. That stale state is what caused duplicate
+// admins to get created. Force a fresh reload from shared storage whenever
+// the page becomes visible again after being hidden/backgrounded.
+window.addEventListener('pageshow', (e)=>{
+  if(e.persisted){
+    state.loading = true;
+    state.currentUser = null;
+    render();
+    loadAll();
+  }
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && !state.currentUser && state.screen==='setup'){
+    // Re-verify no one has completed setup elsewhere while we were away.
+    sGet('mess:members', []).then(freshMembers=>{
+      if(freshMembers.length > 0){
+        state.members = freshMembers;
+        state.screen = 'app';
+        state.loginStep = 'select';
+        render();
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
