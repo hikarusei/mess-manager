@@ -598,6 +598,10 @@ function billTotalPerMember(){
   const n = state.members.length || 1;
   return total / n;
 }
+function mealCountForDate(dateStr){
+  const dayMeals = state.meals[dateStr] || {};
+  return state.members.filter(m => ((dayMeals[m.id] ?? 1) > 0)).length;
+}
 
 /* ============================================================
    RENDER ROOT
@@ -971,7 +975,10 @@ function renderDashboard(){
     <div class="glass card">
       <div class="row" style="margin-bottom:10px;">
         <h3>Deposits</h3>
-        <button class="icon-btn" style="width:32px;height:32px;" id="addDepositBtn">${ICONS.plus}</button>
+        <div class="row" style="gap:8px;">
+          ${activeDeps.length>6 ? `<button class="btn btn-sm btn-ghost" id="viewAllDepositsBtn">View All</button>` : ''}
+          <button class="icon-btn" style="width:32px;height:32px;" id="addDepositBtn">${ICONS.plus}</button>
+        </div>
       </div>
       ${activeDeps.slice(0,6).map(d=>{ const m=memberById(d.memberId); return `
         <div class="list-row" data-deposit-detail="${d.id}" style="cursor:pointer;">
@@ -981,6 +988,32 @@ function renderDashboard(){
             <p class="tiny">${fmtDate(d.date)}${d.time?' · '+d.time:''}</p>
           </div>
         </div>`; }).join('') || `<p class="muted" style="text-align:center; padding:10px 0;">No deposits logged yet</p>`}
+    </div>` : ''}
+
+    ${(u.role==='admin'||u.role==='manager') ? `
+    <div class="glass card">
+      <div class="row" style="margin-bottom:10px;">
+        <h3>Manager Summary</h3>
+        <span class="chip">${state.members.length} members</span>
+      </div>
+      <div class="row" style="margin-bottom:12px;">
+        <p class="muted">আগামীকাল মিল চলবে</p>
+        <p style="font-weight:800;">${mealCountForDate(tomorrow)} জন</p>
+      </div>
+      <div style="max-height:260px; overflow-y:auto;">
+        ${state.members.map(m=>{
+          const dep = memberDepositTotal(m.id, ym);
+          const bal = memberBalance(m.id, ym);
+          const due = memberDueTotal(m.id);
+          return `<div class="list-row">
+            <p style="font-size:13px; font-weight:600;">${m.name}</p>
+            <div class="col" style="align-items:flex-end; gap:2px;">
+              <p class="tiny">Dep ৳${dep.toFixed(0)} · Bal ${bal>=0?'+':''}৳${bal.toFixed(0)}</p>
+              ${due>0?`<p class="tiny" style="color:var(--danger);">Due ৳${due.toFixed(0)}</p>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
     </div>` : ''}
 
     ${(u.role==='admin'||u.role==='manager') && pendingReq.length>0 ? `
@@ -1018,6 +1051,8 @@ function bindDashboard(){
   if(reqBtn) reqBtn.onclick = ()=>{ openMealOffModal(); };
   const depBtn = document.getElementById('addDepositBtn');
   if(depBtn) depBtn.onclick = ()=>{ state.modal={type:'deposit'}; render(); };
+  const vadb = document.getElementById('viewAllDepositsBtn');
+  if(vadb) vadb.onclick = ()=>{ state.modal={type:'allDeposits'}; render(); };
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async ()=>{
     const r = state.mealOffRequests.find(x=>x.id===b.dataset.approve);
     r.status='approved';
@@ -1519,7 +1554,10 @@ function renderAdmin(){
     <div class="glass card">
       <div class="row" style="margin-bottom:10px;">
         <h3>Dues (বকেয়া)</h3>
-        <button class="icon-btn" style="width:32px;height:32px;" id="addDueBtn">${ICONS.plus}</button>
+        <div class="row" style="gap:8px;">
+          ${state.dues.filter(d=>!d.settled).length>8 ? `<button class="btn btn-sm btn-ghost" id="viewAllDuesBtn">View All</button>` : ''}
+          <button class="icon-btn" style="width:32px;height:32px;" id="addDueBtn">${ICONS.plus}</button>
+        </div>
       </div>
       ${state.dues.filter(d=>!d.settled).slice(-8).reverse().map(d=>{
         const m = memberById(d.memberId);
@@ -1637,6 +1675,8 @@ function bindAdmin(){
   };
   const adb = document.getElementById('addDueBtn');
   if(adb) adb.onclick = ()=>{ state.modal={type:'addDue'}; render(); };
+  const vadu = document.getElementById('viewAllDuesBtn');
+  if(vadu) vadu.onclick = ()=>{ state.modal={type:'allDues'}; render(); };
   document.querySelectorAll('[data-settle-due]').forEach(b=>{
     b.onclick = async ()=>{
       const d = state.dues.find(x=>x.id===b.dataset.settleDue);
@@ -1681,6 +1721,8 @@ function renderModal(){
   else if(m.type==='addCustomRole') body = modalAddCustomRole();
   else if(m.type==='editGroupLink') body = modalEditGroupLink();
   else if(m.type==='settlementSummary') body = modalSettlementSummary();
+  else if(m.type==='allDeposits') body = modalAllDeposits();
+  else if(m.type==='allDues') body = modalAllDues();
 
   return `<div class="modal-backdrop" id="modalBackdrop">
     <div class="modal" onclick="event.stopPropagation()">
@@ -1962,6 +2004,37 @@ function modalSettlementSummary(){
     <textarea id="settlementRawText" style="position:absolute; left:-9999px;">${text}</textarea>`;
 }
 
+function modalAllDeposits(){
+  const activeDeps = activeDeposits().slice().reverse();
+  return `
+    <h2 style="margin-bottom:14px;">All Deposits (${activeDeps.length})</h2>
+    <div style="max-height:60vh; overflow-y:auto;">
+      ${activeDeps.map(d=>{ const m=memberById(d.memberId); return `
+        <div class="list-row" data-deposit-detail-all="${d.id}" style="cursor:pointer;">
+          <p style="font-size:13px; font-weight:600;">${m?m.name:'?'}</p>
+          <div class="col" style="align-items:flex-end; gap:2px;">
+            <p style="font-weight:800;">৳${Number(d.amount).toFixed(0)}</p>
+            <p class="tiny">${fmtDate(d.date)}${d.time?' · '+d.time:''}</p>
+          </div>
+        </div>`; }).join('') || `<p class="muted" style="text-align:center; padding:20px 0;">No deposits yet</p>`}
+    </div>
+    <button class="btn btn-ghost btn-full" id="closeAllDepositsBtn" style="margin-top:16px;">Close</button>`;
+}
+function modalAllDues(){
+  const dues = state.dues.filter(d=>!d.settled).slice().reverse();
+  return `
+    <h2 style="margin-bottom:14px;">All Dues (${dues.length})</h2>
+    <div style="max-height:60vh; overflow-y:auto;">
+      ${dues.map(d=>{
+        const m = memberById(d.memberId);
+        return `<div class="list-row">
+          <div class="col" style="gap:2px;"><p style="font-size:13px; font-weight:600;">${m?m.name:'?'}</p><p class="tiny">${d.reason} · ${fmtDate(d.date)}</p></div>
+          <div class="row" style="gap:8px;"><p style="font-weight:800;">৳${Number(d.amount).toFixed(0)}</p><button class="icon-btn" style="width:26px;height:26px;" data-settle-due-all="${d.id}">${ICONS.check}</button></div>
+        </div>`;
+      }).join('') || `<p class="muted" style="text-align:center; padding:20px 0;">কোনো বকেয়া নেই</p>`}
+    </div>
+    <button class="btn btn-ghost btn-full" id="closeAllDuesBtn" style="margin-top:16px;">Close</button>`;
+}
 function modalConfirmRemove(m){
   return `
     <h2 style="margin-bottom:10px;">Remove ${m.memberName}?</h2>
@@ -2147,6 +2220,20 @@ function bindModalEvents(){
   };
   const cardb = document.getElementById('cancelRemoveDepositBtn');
   if(cardb) cardb.onclick = ()=>{ state.modal=null; render(); };
+
+  const closeAllDep = document.getElementById('closeAllDepositsBtn');
+  if(closeAllDep) closeAllDep.onclick = ()=>{ state.modal=null; render(); };
+  document.querySelectorAll('[data-deposit-detail-all]').forEach(el=>{
+    el.onclick = ()=>{ state.modal = {type:'depositDetail', depositId: el.dataset.depositDetailAll}; render(); };
+  });
+  const closeAllDues = document.getElementById('closeAllDuesBtn');
+  if(closeAllDues) closeAllDues.onclick = ()=>{ state.modal=null; render(); };
+  document.querySelectorAll('[data-settle-due-all]').forEach(b=>{
+    b.onclick = async ()=>{
+      const d = state.dues.find(x=>x.id===b.dataset.settleDueAll);
+      if(d){ d.settled = true; await sSet('mess:dues', state.dues); toast('Due settled'); render(); }
+    };
+  });
 
   bindBazarDutyModal();
   bindMemberDetailModal();
